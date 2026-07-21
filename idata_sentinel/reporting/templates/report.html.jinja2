@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>{{ branding.company_name }} — Reporte {{ report_number }}</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  body {
+    font-family: {{ branding.font_family }};
+    background: {{ branding.palette.background }};
+    color: {{ branding.palette.text }};
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+  h1, h2, h3 { color: {{ branding.palette.text }}; }
+  .section { page-break-before: always; padding-top: 0.5cm; }
+  .section:first-child { page-break-before: avoid; }
+  .muted { color: {{ branding.palette.text_muted }}; }
+  .card {
+    background: {{ branding.palette.surface }};
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .grade {
+    font-size: 48pt;
+    font-weight: bold;
+  }
+  .badge {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 9pt;
+    font-weight: bold;
+    color: #ffffff;
+  }
+  .badge-critical { background: {{ branding.palette.critical }}; }
+  .badge-high { background: {{ branding.palette.high }}; }
+  .badge-medium { background: {{ branding.palette.medium }}; }
+  .badge-low { background: {{ branding.palette.low }}; }
+  .badge-info { background: {{ branding.palette.info }}; }
+  .badge-primary { background: {{ branding.palette.primary }}; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid {{ branding.palette.text_muted }}; font-size: 9.5pt; }
+  th { color: {{ branding.palette.text_muted }}; font-weight: normal; text-transform: uppercase; font-size: 8pt; }
+  .footer-legal { font-size: 8pt; color: {{ branding.palette.text_muted }}; margin-top: 24px; }
+  .semaforo-item { display: inline-block; width: 22%; margin-right: 2%; vertical-align: top; }
+  .not-evaluated { opacity: 0.5; }
+</style>
+</head>
+<body>
+
+<!-- 1. Portada -->
+<section class="section">
+  <div style="text-align:center; margin-top: 4cm;">
+    {% if branding.logo_path %}
+      <img src="{{ branding.logo_path }}" style="max-height: 80px;"><br><br>
+    {% else %}
+      <h1>{{ branding.company_name }}</h1>
+    {% endif %}
+    <h2 class="muted">Reporte de Diagnóstico de Seguridad</h2>
+    <p style="margin-top: 2cm;">
+      <strong>Objetivo:</strong> {{ target }}<br>
+      <strong>Fecha:</strong> {{ generated_at }}<br>
+      <strong>Modo:</strong> {{ mode_label }}<br>
+      <strong>N° de informe:</strong> {{ report_number }}
+    </p>
+  </div>
+</section>
+
+<!-- 2. Resumen ejecutivo -->
+<section class="section">
+  <h2>Resumen ejecutivo</h2>
+  <div class="card">
+    <span class="grade badge-{{ grade_class }}" style="background:none; color:{{ branding.palette.primary }};">
+      {{ score }}/100 &middot; {{ grade }}
+    </span>
+    <p class="muted">Score global del escaneo, calculado por severidad × probabilidad de cada hallazgo.</p>
+  </div>
+  <h3>Hallazgos clave</h3>
+  {% if top_findings %}
+    <ul>
+    {% for f in top_findings %}
+      <li>
+        <span class="badge badge-{{ f.severity }}">{{ f.severity | upper }}</span>
+        <strong>{{ f.title }}</strong> — {{ f.business_impact }}
+      </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    <p>Sin hallazgos críticos en este escaneo.</p>
+  {% endif %}
+</section>
+
+<!-- 3. Semáforo por línea -->
+<section class="section">
+  <h2>Semáforo por línea de servicio</h2>
+  {% for m in module_summaries %}
+    <div class="semaforo-item card {% if not m.evaluated %}not-evaluated{% endif %}">
+      <div class="muted">{{ m.label }}</div>
+      {% if m.evaluated %}
+        <div style="font-size: 20pt; font-weight: bold;">{{ m.score }}</div>
+        <div class="muted">{{ m.finding_count }} hallazgo(s)</div>
+      {% else %}
+        <div style="font-size: 12pt;">No evaluado</div>
+      {% endif %}
+    </div>
+  {% endfor %}
+</section>
+
+<!-- 4. Hallazgos priorizados -->
+<section class="section">
+  <h2>Hallazgos priorizados</h2>
+  <table>
+    <thead>
+      <tr><th>Severidad</th><th>Hallazgo</th><th>Por qué importa</th><th>Recomendación</th></tr>
+    </thead>
+    <tbody>
+    {% for f in all_findings %}
+      <tr>
+        <td><span class="badge badge-{{ f.severity }}">{{ f.severity | upper }}</span></td>
+        <td>{{ f.title }}</td>
+        <td>{{ f.business_impact }}</td>
+        <td>{{ f.recommendation }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<!-- 5. Mapa de superficie de ataque (Módulo 2) -->
+<section class="section">
+  <h2>Mapa de superficie de ataque</h2>
+  {% set assets = module_summaries | selectattr("name", "equalto", "asset_inventory") | first %}
+  {% if assets.evaluated %}
+    <p>Activos identificados: ver anexo técnico.</p>
+  {% else %}
+    <p class="muted">No disponible en este escaneo — requiere el Módulo 2 (Inventario de activos), aún no ejecutado.</p>
+  {% endif %}
+</section>
+
+<!-- 6. Cumplimiento Ley 21.719 (Módulo 3) -->
+<section class="section">
+  <h2>Cumplimiento Ley 21.719</h2>
+  {% set privacy = module_summaries | selectattr("name", "equalto", "data_privacy") | first %}
+  {% if privacy.evaluated %}
+    <p>Checklist de cumplimiento: ver anexo técnico.</p>
+  {% else %}
+    <p class="muted">No disponible en este escaneo — requiere el Módulo 3 (Datos Personales), aún no ejecutado.</p>
+  {% endif %}
+  <p class="muted">Este módulo evalúa señales técnicas observables; no reemplaza una asesoría legal formal.</p>
+</section>
+
+<!-- 7. Anexo técnico -->
+<section class="section">
+  <h2>Anexo técnico</h2>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Categoría</th><th>Estado</th><th>Evidencia</th><th>Referencias</th></tr>
+    </thead>
+    <tbody>
+    {% for f in all_findings %}
+      <tr>
+        <td>{{ f.id }}</td>
+        <td>{{ f.category }}</td>
+        <td>{{ f.status }}</td>
+        <td>{{ f.evidence[:200] }}</td>
+        <td>{{ f.references | join(", ") }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<!-- 8. Propuesta / próximos pasos -->
+<section class="section">
+  <h2>Próximos pasos</h2>
+  <p>
+    Este diagnóstico es el punto de partida. {{ branding.company_name }} ofrece servicios de
+    <strong>Controles</strong>, <strong>Gobierno</strong> y <strong>Monitoreo continuo</strong> para
+    cerrar las brechas identificadas y mantener la postura de seguridad en el tiempo.
+  </p>
+  <p>Conversemos: <a href="{{ branding.company_url }}">{{ branding.company_url }}</a></p>
+</section>
+
+<!-- 9. Disclaimer legal -->
+<section class="section">
+  <div class="footer-legal">
+    <p>
+      Este reporte se basa en {{ "información pública observada de forma pasiva" if mode == "passive" else "un escaneo autorizado y registrado por el cliente" }}.
+      No constituye una garantía absoluta de seguridad: es una foto del momento del escaneo
+      ({{ generated_at }}). Las recomendaciones están sujetas a validación técnica adicional.
+    </p>
+  </div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,6 @@
+# Configuración pública de IDATA Sentinel (no secretos — ver plan de infraestructura §11.5).
+rate_limit_seconds: 2.0
+branding_file: "branding/idata.yaml"
+report:
+  output_dir: "reports"
+  retention_days: 90
