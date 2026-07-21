@@ -1,0 +1,36 @@
+[project]
+name = "idata-sentinel"
+version = "0.1.0"
+description = "IDATA Sentinel — plataforma de diagnóstico de seguridad web (IDATA Chile)"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "cryptography>=42.0",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+    "rich>=13.7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "respx>=0.21",
+]
+
+[project.scripts]
+idata-sentinel = "idata_sentinel.interfaces.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["idata_sentinel"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+    "integration: tests that spin up local network resources (excluded by default)",
+]
+addopts = "-m 'not integration'"
