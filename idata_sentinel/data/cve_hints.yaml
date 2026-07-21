@@ -1,0 +1,24 @@
+# Base local, offline, curada a mano — SOLO informativa.
+# IDATA Sentinel NUNCA verifica explotabilidad; esto solo cruza versión
+# detectada contra rangos conocidos como referencia para el cliente.
+#
+# ATENCIÓN: las entradas de este archivo son EJEMPLOS/PLACEHOLDER para
+# validar el pipeline. Antes de usar en un escaneo real, el equipo de
+# seguridad de IDATA debe curar esta lista con CVEs verificadas y sus
+# rangos de versión reales (fuente sugerida: NVD, GitHub Advisories).
+#
+# rango de versión: [min_version, max_version) — max_version null = sin tope conocido.
+
+- product: PHP
+  min_version: "0"
+  max_version: "7.4.0"
+  cve_ids: ["CVE-2019-11043"]
+  title: "PHP-FPM: underflow que puede derivar en RCE bajo ciertas configuraciones de Nginx (ejemplo)."
+  cvss_severity: "high"
+
+- product: WordPress
+  min_version: "0"
+  max_version: "6.4.2"
+  cve_ids: ["CVE-2024-EJEMPLO-PLACEHOLDER"]
+  title: "Placeholder — reemplazar con CVEs reales de WordPress core antes de producción."
+  cvss_severity: "medium"

@@ -1,0 +1,13 @@
+# Motor de riesgo (plan maestro §7): severidad × probabilidad → score 0-100.
+
+severity_weights:
+  critical: 25
+  high: 15
+  medium: 8
+  low: 3
+  info: 0
+
+likelihood_multipliers:
+  high: 1.0
+  medium: 0.7
+  low: 0.4

@@ -1,0 +1,38 @@
+# Firmas propias de fingerprinting (headers/HTML/meta generator).
+# Fallback liviano — no reemplaza un motor tipo Wappalyzer, pero cubre las
+# tecnologías más comunes vistas en clientes/prospectos de IDATA.
+# Curado a mano; ampliar según lo que se observe en escaneos reales.
+
+- product: WordPress
+  html_patterns:
+    - "wp-content/"
+    - "wp-includes/"
+  meta_generator: "WordPress"
+  version_pattern: 'wp-includes/js/wp-emoji-release\.min\.js\?ver=([\d.]+)'
+
+- product: Nginx
+  header: server
+  header_pattern: 'nginx(?:/([\d.]+))?'
+
+- product: Apache
+  header: server
+  header_pattern: 'Apache(?:/([\d.]+))?'
+
+- product: PHP
+  header: x-powered-by
+  header_pattern: 'PHP/([\d.]+)'
+
+- product: ASP.NET
+  header: x-aspnet-version
+  header_pattern: '([\d.]+)'
+
+- product: Drupal
+  html_patterns:
+    - "Drupal.settings"
+    - "/sites/default/files"
+  meta_generator: "Drupal"
+
+- product: Joomla
+  html_patterns:
+    - "/media/jui/"
+  meta_generator: "Joomla"
