@@ -36,6 +36,9 @@ class RunParams:
     #: mapear la seguridad del tratamiento (evidenciada por el Módulo 1) al
     #: checklist de la Ley 21.719.
     previous_findings: list[dict] = field(default_factory=list)
+    #: Artefactos de los módulos ya ejecutados. El Módulo 4 compara el mapa de
+    #: superficie actual (Módulo 2) contra el de la línea base.
+    module_artifacts: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -130,6 +133,7 @@ class Engine:
             )
             for module in selected:
                 params.previous_findings = list(accumulated)
+                params.module_artifacts = dict(artifacts)
                 output = await module.run(params)
                 findings = output.findings if isinstance(output, ModuleOutput) else output
                 results[module.name] = findings

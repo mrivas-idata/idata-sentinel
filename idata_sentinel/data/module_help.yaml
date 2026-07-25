@@ -1,0 +1,121 @@
+# Catálogo de ayuda por módulo. Fuente única para la CLI (`idata-sentinel help`),
+# la app web y el reporte, para que las tres cuenten lo mismo.
+
+- key: vuln_identification
+  alias: vuln
+  label: Identificación de vulnerabilidades
+  phase: "Fase 1"
+  tagline: Detecta brechas de configuración antes que un atacante.
+  purpose: >-
+    Analiza cómo está configurado el sitio y qué revela sin querer. Es el corazón
+    técnico del diagnóstico y alimenta el score global.
+  what_it_does:
+    - "Cabeceras de seguridad HTTP: HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy y las cabeceras de aislamiento COOP/COEP/CORP."
+    - "TLS/SSL: versión de protocolo, cifradores débiles, validez y vencimiento del certificado, cadena de confianza y redirección forzada a HTTPS."
+    - "Cookies: flags Secure, HttpOnly y SameSite en cada cookie emitida."
+    - "Fingerprint de tecnología y versión expuesta, con CVEs conocidas cruzadas de forma informativa."
+    - "Archivos de seguridad: security.txt (RFC 9116), robots.txt con rutas sensibles y listado de directorios abierto."
+    - "Exposición de información: errores verbosos, metadatos y formularios sin HTTPS."
+  key_findings:
+    - "hsts_missing — el navegador puede ser degradado a HTTP."
+    - "cert_expired / cert_expiring_soon — el sitio queda inutilizable o a días de estarlo."
+    - "tls_legacy_protocol — se acepta TLS 1.0/1.1, criptografía rota."
+    - "cve_informational — versión con CVEs publicadas. Nunca se comprueba explotabilidad."
+  legal: >-
+    Todos los checks son observacionales. No se prueban credenciales, no se
+    inyecta nada y jamás se explota una CVE: solo se reporta la versión que el
+    propio servidor publica.
+  examples:
+    - "idata-sentinel scan https://cliente.cl --modules vuln"
+    - "idata-sentinel scan https://cliente.cl --modules vuln --pdf informe.pdf"
+  report_section: "Secciones 2, 4 y 7 del reporte"
+
+- key: asset_inventory
+  alias: assets
+  label: Inventario de activos tecnológicos
+  phase: "Fase 3"
+  tagline: Descubre la superficie de ataque real, no la declarada.
+  purpose: >-
+    Levanta todos los activos publicados del dominio y los correlaciona con su
+    tecnología y su riesgo. No se protege lo que no se sabe que existe.
+  what_it_does:
+    - "Descubre subdominios leyendo los Certificate Transparency logs (crt.sh). Sin fuerza bruta de nombres."
+    - "Resuelve A, AAAA, CNAME, MX, TXT, NS y CAA de cada activo."
+    - "Perfila cada activo con un único GET: estado, tecnología, CDN, WAF y proveedor cloud."
+    - "Detecta riesgo de apropiación de subdominio (CNAME colgante hacia un SaaS)."
+    - "Evalúa la seguridad del correo del dominio: SPF, DMARC, MTA-STS, TLS-RPT, CAA y DNSSEC."
+    - "Marca entornos no productivos publicados y filtraciones de la IP de origen tras el CDN."
+  key_findings:
+    - "subdomain_takeover_risk — un tercero podría publicar contenido en un subdominio de la empresa."
+    - "non_production_asset_exposed — un entorno de pruebas visible desde Internet."
+    - "spf_missing / dmarc_missing — cualquiera puede enviar correo suplantando el dominio."
+    - "asset_without_https — un activo sirviendo tráfico en claro."
+  legal: >-
+    El descubrimiento usa solo registros públicos. Ante un posible takeover se
+    reporta el riesgo pero nunca se reclama ni se ocupa el recurso huérfano: eso
+    sería tomar control de infraestructura ajena.
+  examples:
+    - "idata-sentinel scan https://cliente.cl --modules assets"
+    - "idata-sentinel scan https://cliente.cl --mode audit --i-have-authorization --authorized-by \"Ana Pérez, CISO\" --contract OC-123 --asset intranet.cliente.cl"
+  report_section: "Sección 5 — Mapa de superficie de ataque"
+
+- key: data_privacy
+  alias: privacy
+  label: Datos Personales (Ley 21.719)
+  phase: "Fase 4"
+  tagline: Señales técnicas de cumplimiento de la ley chilena de datos personales.
+  purpose: >-
+    Evalúa cómo el sitio captura, informa y comparte datos personales, y traduce
+    los hallazgos a un semáforo por principio de la Ley 21.719.
+  what_it_does:
+    - "Busca la política de privacidad en los enlaces que la propia página publica y verifica que sea accesible."
+    - "Detecta formularios que capturan datos personales y clasifica 12 categorías de dato."
+    - "Marca aparte las categorías sensibles del art. 2 lit. g): salud, biométricos, ideología, vida sexual, origen étnico y situación socioeconómica."
+    - "Verifica que los formularios con datos personales viajen cifrados."
+    - "Detecta rastreadores de terceros activos sin mecanismo de consentimiento."
+    - "Identifica grabación de sesión (session replay), que puede capturar lo que el usuario escribe."
+    - "Lista las transferencias de datos a responsables fuera de Chile."
+  key_findings:
+    - "pii_form_insecure_transport — datos personales enviados sin cifrar. Crítico."
+    - "privacy_policy_missing — no se informa al titular, la brecha más fácil de constatar."
+    - "trackers_without_consent — se tratan datos desde el primer instante de la visita."
+    - "session_replay_active — un tercero graba lo que el usuario escribe."
+  legal: >-
+    Evalúa señales técnicas observables. NO constituye una calificación legal de
+    cumplimiento ni sustituye la asesoría del servicio de Datos Personales de
+    IDATA. Nunca se adivinan rutas: la política se busca solo en enlaces publicados.
+  examples:
+    - "idata-sentinel scan https://cliente.cl --modules privacy"
+    - "idata-sentinel scan https://cliente.cl --modules vuln,privacy --pdf informe.pdf"
+  report_section: "Sección 6 — Cumplimiento Ley 21.719"
+
+- key: monitoring
+  alias: monitor
+  label: Monitoreo continuo
+  phase: "Fase 5"
+  tagline: Convierte el diagnóstico puntual en vigilancia permanente.
+  purpose: >-
+    Compara cada escaneo contra la línea base del cliente y avisa cuando algo
+    cambia. El valor no está en el hallazgo, sino en que aparezca uno nuevo.
+  what_it_does:
+    - "Guarda el primer escaneo de cada objetivo como línea base."
+    - "Compara hallazgos: cuáles son nuevos, cuáles se resolvieron y cuáles se agravaron."
+    - "Compara la superficie de ataque: activos nuevos, activos que desaparecieron y cambios de tecnología."
+    - "Calcula la tendencia del score en el tiempo."
+    - "Emite alertas por webhook ante hallazgos graves nuevos, activos nuevos, certificados por vencer o caídas de score."
+    - "Programa re-escaneos diarios, semanales o mensuales."
+  key_findings:
+    - "new_finding_since_baseline — algo cambió desde la última foto."
+    - "new_assets_detected — superficie de ataque que nadie declaró."
+    - "risk_score_dropped — la postura se degradó de forma medible."
+    - "findings_resolved — evidencia objetiva de mejora para la dirección."
+  legal: >-
+    El monitoreo respeta exactamente los mismos límites que un escaneo puntual,
+    incluido el rate limit del modo pasivo. Los datos históricos quedan sujetos a
+    la política de retención, que siempre preserva la línea base.
+  examples:
+    - "idata-sentinel monitor add https://cliente.cl --schedule weekly"
+    - "idata-sentinel monitor list"
+    - "idata-sentinel monitor run"
+    - "idata-sentinel scan https://cliente.cl --record"
+  report_section: "Sección 3 — Semáforo y tendencia"

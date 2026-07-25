@@ -99,6 +99,19 @@ class HttpClient:
             )
         return FetchOutcome(response=resp, error=None)
 
+    async def post(self, url: str, *, json: dict | None = None) -> FetchOutcome:
+        """Solo para notificaciones salientes del monitoreo (webhooks, §6).
+
+        **Nunca** se usa contra un objetivo de escaneo: enviar datos a un activo
+        ajeno sería un payload, y el plan lo prohíbe en ambos modos (§1.2).
+        """
+        try:
+            resp = await self._client.post(url, json=json)
+        except httpx.HTTPError as e:
+            logger.info("Error enviando POST a %s: %s", url, e)
+            return FetchOutcome(response=None, error=FetchError.UNREACHABLE)
+        return FetchOutcome(response=resp, error=None)
+
     async def aclose(self) -> None:
         await self._client.aclose()
 
