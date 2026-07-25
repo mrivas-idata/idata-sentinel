@@ -77,6 +77,21 @@ idata-sentinel serve
 
 `--json salida.json` exporta el contrato estable para integrar con CRM o dashboards.
 
+### Cifrado en reposo
+
+Los hallazgos describen las debilidades del cliente: si la base se filtra, el
+atacante recibe el mapa ya hecho. Para cifrarlos:
+
+```bash
+idata-sentinel keygen                       # genera la clave
+export IDATA_SENTINEL_ENCRYPTION_KEY=...    # guárdala en el gestor de secretos
+```
+
+Se cifran `findings` y `artifacts`; el objetivo, la fecha y el score quedan en claro
+porque son las columnas por las que se consulta el histórico. Activarlo no rompe una
+base existente: cada fila registra en qué modo se escribió. **Sin la clave, los
+escaneos ya cifrados son irrecuperables.**
+
 ### App web
 
 `idata-sentinel serve` levanta el panel en `http://127.0.0.1:8000`: cartera de

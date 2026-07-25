@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from idata_sentinel.storage.crypto import ENV_KEY, Cipher, DecryptionError, cipher_from_env
+
 DEFAULT_DB_PATH = Path("idata_sentinel.db")
 
 _SCHEMA = """
@@ -27,7 +29,8 @@ CREATE TABLE IF NOT EXISTS scans (
     grade       TEXT    NOT NULL,
     findings    TEXT    NOT NULL,
     artifacts   TEXT    NOT NULL,
-    is_baseline INTEGER NOT NULL DEFAULT 0
+    is_baseline INTEGER NOT NULL DEFAULT 0,
+    encrypted   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_scans_target ON scans(target, scanned_at);
 
@@ -45,7 +48,10 @@ CREATE TABLE IF NOT EXISTS monitors (
 
 #: Columnas añadidas después de la primera versión del esquema. SQLite no tiene
 #: "ADD COLUMN IF NOT EXISTS", así que se comprueba antes de aplicar.
-_MIGRATIONS = (("monitors", "modules", "TEXT NOT NULL DEFAULT 'all'"),)
+_MIGRATIONS = (
+    ("monitors", "modules", "TEXT NOT NULL DEFAULT 'all'"),
+    ("scans", "encrypted", "INTEGER NOT NULL DEFAULT 0"),
+)
 
 SCHEDULES = {"daily": 1, "weekly": 7, "monthly": 30}
 
@@ -65,6 +71,7 @@ class ScanRecord:
     findings: list[dict]
     artifacts: dict
     is_baseline: bool
+    encrypted: bool = False
 
     def surface_map(self) -> dict | None:
         return self.artifacts.get("asset_inventory", {}).get("surface_map")
@@ -94,8 +101,11 @@ class ScanStore:
     """Acceso a la base. Abre y cierra la conexión por operación: los escaneos
     son esporádicos y así no hay estado compartido entre hilos del worker."""
 
-    def __init__(self, path: Path | str = DEFAULT_DB_PATH) -> None:
+    def __init__(self, path: Path | str = DEFAULT_DB_PATH, *, cipher: Cipher | None = None) -> None:
         self.path = Path(path)
+        #: Sin clave configurada el cifrado queda inactivo y cada fila registra
+        #: en qué modo se escribió (plan maestro §1.4).
+        self.cipher = cipher if cipher is not None else cipher_from_env()
         self.initialize()
 
     def _connect(self) -> sqlite3.Connection:
@@ -131,13 +141,14 @@ class ScanStore:
 
         with self._connect() as conn:
             cursor = conn.execute(
-                "INSERT INTO scans (target, mode, scanned_at, score, grade, findings, artifacts, is_baseline)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO scans (target, mode, scanned_at, score, grade, findings, artifacts,"
+                " is_baseline, encrypted) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     target, mode, scanned_at, score, grade,
-                    json.dumps(findings, ensure_ascii=False),
-                    json.dumps(artifacts or {}, ensure_ascii=False),
+                    self.cipher.encrypt(json.dumps(findings, ensure_ascii=False)),
+                    self.cipher.encrypt(json.dumps(artifacts or {}, ensure_ascii=False)),
                     int(is_baseline),
+                    int(self.cipher.enabled),
                 ),
             )
             scan_id = cursor.lastrowid
@@ -148,11 +159,23 @@ class ScanStore:
         )
 
     def _row_to_scan(self, row: sqlite3.Row) -> ScanRecord:
+        # La fila dice cómo se escribió: una base creada antes de activar el
+        # cifrado se sigue leyendo sin tocarla.
+        was_encrypted = "encrypted" in row.keys() and bool(row["encrypted"])
+        if was_encrypted and not self.cipher.enabled:
+            raise DecryptionError(
+                f"El escaneo {row['id']} está cifrado y no hay clave configurada. "
+                f"Define {ENV_KEY} para poder leerlo."
+            )
+        decode = self.cipher.decrypt if was_encrypted else (lambda value: value)
+
         return ScanRecord(
             id=row["id"], target=row["target"], mode=row["mode"], scanned_at=row["scanned_at"],
             score=row["score"], grade=row["grade"],
-            findings=json.loads(row["findings"]), artifacts=json.loads(row["artifacts"]),
+            findings=json.loads(decode(row["findings"])),
+            artifacts=json.loads(decode(row["artifacts"])),
             is_baseline=bool(row["is_baseline"]),
+            encrypted=was_encrypted,
         )
 
     def baseline(self, target: str) -> ScanRecord | None:

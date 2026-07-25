@@ -332,6 +332,20 @@ def monitor_run(
 # ---------------------------------------------------------------------------
 
 
+@app.command("keygen")
+def keygen() -> None:
+    """Genera una clave para cifrar en reposo los datos de escaneo (plan §1.4)."""
+    from idata_sentinel.storage.crypto import ENV_KEY, generate_key
+
+    key = generate_key()
+    console.print(f"[green]Clave generada:[/green]\n\n  {key}\n")
+    console.print(
+        f"Expórtala como [bold]{ENV_KEY}[/bold] antes de escanear.\n"
+        "[yellow]Guárdala en el gestor de secretos, nunca en el repositorio: sin ella "
+        "los escaneos ya cifrados son irrecuperables.[/yellow]"
+    )
+
+
 @app.command("serve")
 def serve(
     host: str = typer.Option("127.0.0.1", "--host", help="Interfaz de escucha"),
