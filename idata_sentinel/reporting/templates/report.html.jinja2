@@ -62,6 +62,11 @@
     box-sizing: border-box; position: relative;
   }
   .cover-rule { width: 64px; height: 4px; background: {{ branding.palette.primary }}; margin-bottom: 26px; }
+  /* El logo trae fondo blanco incrustado: sobre la portada oscura va dentro de
+     una pastilla clara en lugar de recortarlo a la fuerza. */
+  .logo-chip { display: inline-block; background: #ffffff; padding: 10px 14px;
+               border-radius: 9px; margin-bottom: 22px; }
+  .logo-chip img { display: block; height: 52px; }
   .cover h1 { font-size: 34pt; letter-spacing: -0.03em; line-height: 1.08; }
   .cover .kicker {
     color: {{ branding.palette.primary }}; font-size: 9pt;
@@ -117,7 +122,9 @@
 <!-- 1. Portada -->
 <div class="cover">
   <div class="cover-rule"></div>
-  {% if branding.logo_path %}<img src="{{ branding.logo_path }}" style="max-height:64px; margin-bottom:20px;"><br>{% endif %}
+  {% if branding.logo_data_uri %}
+    <div class="logo-chip"><img src="{{ branding.logo_data_uri }}" alt="{{ branding.company_name }}"></div>
+  {% endif %}
   <div class="kicker">{{ branding.company_name }} · Diagnóstico de seguridad</div>
   <h1>Reporte<br>de postura<br>de seguridad</h1>
   <p class="muted" style="font-size:12pt; margin-top:18px;">{{ target }}</p>

@@ -21,10 +21,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import markdown
-import yaml
 from markdown.extensions.toc import slugify_unicode
 
-_BRANDING_PATH = Path(__file__).resolve().parent.parent / "branding" / "idata.yaml"
+from idata_sentinel.reporting.branding import load_branding
 
 #: Bloques que solo existen para el equipo de IDATA. Se eliminan por defecto:
 #: automatizarlo evita el error de entregar notas internas al cliente.
@@ -57,10 +56,6 @@ class DocumentMeta:
     confidentiality: str = "Documento confidencial · uso exclusivo del destinatario"
 
 
-def load_branding() -> dict:
-    return yaml.safe_load(_BRANDING_PATH.read_text(encoding="utf-8"))
-
-
 def strip_internal_notes(text: str) -> tuple[str, int]:
     """Devuelve (texto_limpio, bloques_eliminados)."""
     cleaned, removed = _INTERNAL_BLOCK.subn("", text)
@@ -90,7 +85,7 @@ def markdown_to_html(text: str, *, highlight_placeholders: bool = False) -> str:
     )
     html = converter.convert(text)
     if highlight_placeholders:
-        html = _PLACEHOLDER.sub(r'<span class="placeholder">«\1»</span>', html)
+        html = _PLACEHOLDER.sub(r'<span class="placeholder">[[\1]]</span>', html)
     return html
 
 

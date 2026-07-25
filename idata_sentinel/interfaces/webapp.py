@@ -32,6 +32,7 @@ from idata_sentinel.modules.asset_inventory.module import AssetInventoryModule
 from idata_sentinel.modules.data_privacy.module import DataPrivacyModule
 from idata_sentinel.modules.monitoring.module import MonitoringModule
 from idata_sentinel.modules.vuln_identification.module import VulnIdentificationModule
+from idata_sentinel.reporting.branding import load_branding
 from idata_sentinel.reporting.charts import (
     SEVERITY_COLORS,
     SEVERITY_LABELS,
@@ -119,6 +120,7 @@ def create_app(
         ]
         return {
             "request": request,
+            "branding": load_branding(),
             "auth_enabled": bool(app.state.token),
             "targets": targets,
             "severity_color": severity_color,

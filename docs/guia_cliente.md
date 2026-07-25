@@ -106,10 +106,11 @@ base sobre la que se sostiene la legalidad del encargo.
 
 | Entregable | Formato | Cuándo |
 |---|---|---|
-| Reporte ejecutivo de diagnóstico | PDF con identidad IDATA | [[completar plazo]] |
+| Reporte ejecutivo de diagnóstico | PDF con identidad IDATA | 5 días hábiles desde el término del escaneo |
 | Anexo técnico detallado | Incluido en el PDF (sección 7) | Junto al reporte |
 | Resultados estructurados | JSON, para integrar con sus herramientas | A solicitud |
-| Presentación de resultados | Reunión de [[duración]] | [[completar plazo]] |
+| Presentación de resultados | Reunión de 60 minutos | Dentro de la semana siguiente a la entrega |
+| Re-escaneo de verificación | Informe comparativo | 1 incluido, dentro de 60 días |
 | Alertas de monitoreo | Correo o webhook | Solo si contrató monitoreo |
 | Reporte de tendencia | PDF periódico | Solo si contrató monitoreo |
 
@@ -137,7 +138,9 @@ El reporte tiene nueve secciones, en este orden:
 
 **Quién participa:** por su parte, un responsable con autoridad para autorizar el
 análisis (típicamente Gerente de TI, CISO o Gerente General) y, si existe, quien
-opere la infraestructura. Por parte de IDATA, [[completar]].
+opere la infraestructura. Por parte de IDATA, el responsable del encargo y, cuando el
+alcance lo amerite, el analista asignado. Ambos quedan identificados en el
+[Anexo E](#anexo-e--responsables-del-encargo).
 
 **Qué se define:**
 
@@ -463,8 +466,13 @@ entregamos un **informe comparativo** que muestra:
 Es el entregable que le permite mostrar avance con evidencia objetiva, en lugar
 de una afirmación.
 
-**Condiciones del re-escaneo:** [[completar — si está incluido en el contrato, en
-qué plazo, y cuántos re-escaneos]].
+**Condiciones del re-escaneo.** El servicio incluye **un re-escaneo de verificación
+sin costo adicional**, ejecutable dentro de los **60 días** siguientes a la entrega
+del informe. Se coordina cuando su equipo confirme que terminó las correcciones.
+
+Si necesita más de uno, o si el plazo se le queda corto, se cotiza por separado o se
+resuelve contratando el monitoreo continuo del Paso 10, que lo cubre de forma
+permanente.
 
 ---
 
@@ -563,7 +571,7 @@ consecuencia.
 | Aspecto | Cómo lo manejamos |
 |---|---|
 | **Cifrado en reposo** | Los hallazgos y el inventario se almacenan cifrados |
-| **Retención** | [[completar plazo]]. Al cumplirse, se eliminan salvo instrucción contraria suya |
+| **Retención** | 12 meses desde el escaneo. Al cumplirse se eliminan, salvo instrucción contraria suya |
 | **Acceso** | Restringido al equipo asignado a su encargo |
 | **Registro de autorizaciones** | Log de solo-escritura, disponible para usted |
 | **Distribución del reporte** | Solo a los destinatarios que usted designe en el Anexo E |
@@ -875,8 +883,9 @@ aparecerá en sus registros.
 
 ### Si necesita detener el escaneo
 
-Contacte a [[nombre y teléfono del contacto técnico de IDATA]]. El escaneo se
-detiene de inmediato, sin dejar estado en su infraestructura.
+Contacte al responsable del encargo o al contacto de emergencia indicados en el
+[Anexo E](#anexo-e--responsables-del-encargo). El escaneo se detiene de inmediato,
+sin dejar estado en su infraestructura.
 
 ---
 
@@ -903,4 +912,4 @@ detiene de inmediato, sin dejar estado en su infraestructura.
 ---
 
 *IDATA Chile — https://idatachile.com*
-*Guía del servicio de Diagnóstico de Seguridad · versión [[completar]] · [[fecha]]*
+*Guía del servicio de Diagnóstico de Seguridad · versión 1.0 · julio de 2026*

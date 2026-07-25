@@ -1,7 +1,12 @@
 # Branding IDATA — parametrizado (plan maestro §8) para no tocar código por reporte.
 company_name: "IDATA Chile"
 company_url: "https://idatachile.com"
-logo_path: null  # ruta a un PNG/SVG del logo; null = usar solo texto en la portada
+# Ruta relativa a este directorio; null = usar solo el nombre en texto.
+# El logo tiene fondo blanco incrustado (ninguna variante entregada trae
+# transparencia real), así que sobre fondos oscuros se coloca dentro de una
+# pastilla clara. Ver reporting/branding.py.
+logo_path: logo.png
+logo_needs_light_background: true
 palette:
   background: "#0b1220"
   surface: "#131b2e"

@@ -71,6 +71,14 @@
     page-break-after: always;
   }
   .cover-rule { width: 64px; height: 4px; background: var(--accent); margin-bottom: 28px; }
+  /* El logo trae fondo blanco incrustado —ninguna variante entregada tiene
+     transparencia real—, así que sobre la portada oscura va dentro de una
+     pastilla clara en lugar de recortarlo a la fuerza. */
+  .logo-chip {
+    display: inline-block; background: #ffffff;
+    padding: 11px 15px; border-radius: 10px; margin-bottom: 26px;
+  }
+  .logo-chip img { display: block; height: 58px; }
   .cover-kicker {
     color: var(--accent); font-size: 9pt;
     letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 14px;
@@ -182,8 +190,8 @@
 
 <div class="cover">
   <div class="cover-rule"></div>
-  {% if branding.logo_path %}
-    <img src="{{ branding.logo_path }}" style="max-height:60px; margin-bottom:22px;"><br>
+  {% if branding.logo_data_uri %}
+    <div class="logo-chip"><img src="{{ branding.logo_data_uri }}" alt="{{ branding.company_name }}"></div>
   {% endif %}
   <div class="cover-kicker">{{ branding.company_name }} · {{ document_type }}</div>
   <h1>{{ title }}</h1>

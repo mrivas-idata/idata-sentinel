@@ -3,10 +3,8 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
-import yaml
-
+from idata_sentinel.reporting.branding import load_branding
 from idata_sentinel.reporting.charts import (
     grade_color,
     severity_color,
@@ -14,8 +12,6 @@ from idata_sentinel.reporting.charts import (
     severity_segments,
     sparkline,
 )
-
-_BRANDING_PATH = Path(__file__).resolve().parent.parent / "branding" / "idata.yaml"
 
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
@@ -31,14 +27,10 @@ _CANONICAL_MODULES = [
 _GRADE_CLASS = {"A": "primary", "B": "primary", "C": "medium", "D": "high", "F": "critical"}
 
 
-def _load_branding() -> dict:
-    return yaml.safe_load(_BRANDING_PATH.read_text(encoding="utf-8"))
-
-
 def build_report_context(scan_result: dict, risk: dict, *, report_number: str | None = None) -> dict:
     """scan_result: {"target", "mode", "modules": {module_name: [finding, ...]}}.
     risk: salida de RiskScore.to_dict()."""
-    branding = _load_branding()
+    branding = load_branding()
     modules = scan_result.get("modules", {})
     all_findings = [f for findings in modules.values() for f in findings]
     actionable = sorted(

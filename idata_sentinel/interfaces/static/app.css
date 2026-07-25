@@ -71,7 +71,13 @@ a:hover { text-decoration: underline; }
   font-size: 17px; font-weight: 650; letter-spacing: -0.01em; color: var(--ink);
 }
 .brand-mark svg { flex: none; }
-.brand-sub { color: var(--ink-muted); font-size: 12px; margin-top: 4px; letter-spacing: 0.04em; text-transform: uppercase; }
+.brand-sub { color: var(--ink-muted); font-size: 12px; margin-top: 10px; letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* El logo entregado trae fondo blanco incrustado (ninguna variante tiene
+   transparencia real), así que sobre la barra oscura va dentro de una pastilla
+   clara en lugar de recortarlo a la fuerza. */
+.logo-chip { display: inline-block; background: #fff; padding: 9px 12px; border-radius: 9px; }
+.logo-chip img { display: block; height: 46px; }
 
 .nav-group { padding: 8px 12px; }
 .nav-label {

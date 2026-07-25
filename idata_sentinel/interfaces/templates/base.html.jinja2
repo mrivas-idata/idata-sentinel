@@ -13,16 +13,21 @@
 
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-mark">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 2.5 4.5 5.6v6.1c0 4.6 3.2 8.9 7.5 10 4.3-1.1 7.5-5.4 7.5-10V5.6L12 2.5Z"
-                stroke="#3b82f6" stroke-width="1.7" stroke-linejoin="round"/>
-          <path d="m8.6 12.1 2.4 2.4 4.4-4.6" stroke="#3b82f6" stroke-width="1.7"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        IDATA Sentinel
-      </div>
-      <div class="brand-sub">Diagnóstico de seguridad</div>
+      {% if branding and branding.logo_data_uri %}
+        {# El logo trae fondo blanco: sobre la barra oscura va en pastilla clara. #}
+        <div class="logo-chip"><img src="{{ branding.logo_data_uri }}" alt="{{ branding.company_name }}"></div>
+      {% else %}
+        <div class="brand-mark">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 2.5 4.5 5.6v6.1c0 4.6 3.2 8.9 7.5 10 4.3-1.1 7.5-5.4 7.5-10V5.6L12 2.5Z"
+                  stroke="#3b82f6" stroke-width="1.7" stroke-linejoin="round"/>
+            <path d="m8.6 12.1 2.4 2.4 4.4-4.6" stroke="#3b82f6" stroke-width="1.7"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          IDATA Chile
+        </div>
+      {% endif %}
+      <div class="brand-sub">Sentinel · Diagnóstico</div>
     </div>
 
     <nav class="nav-group">
