@@ -50,6 +50,10 @@ def build_report_context(scan_result: dict, risk: dict, *, report_number: str | 
             "finding_count": len([f for f in findings if f["status"] in ("fail", "warning")]) if evaluated else 0,
         })
 
+    severity_counts = {level: 0 for level in _SEVERITY_ORDER}
+    for f in actionable:
+        severity_counts[f["severity"]] = severity_counts.get(f["severity"], 0) + 1
+
     return {
         "report_number": report_number or f"IDS-{uuid.uuid4().hex[:8].upper()}",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -64,4 +68,12 @@ def build_report_context(scan_result: dict, risk: dict, *, report_number: str | 
         "top_findings": actionable[:5],
         "all_findings": actionable,
         "total_findings": len(actionable),
+        "severity_counts": severity_counts,
+        "surface_map": _surface_map(scan_result),
     }
+
+
+def _surface_map(scan_result: dict) -> dict | None:
+    """Artefacto del Módulo 2 (plan maestro §4). `None` si ese módulo no corrió,
+    para que la sección 5 del reporte se degrade con elegancia."""
+    return scan_result.get("artifacts", {}).get("asset_inventory", {}).get("surface_map")

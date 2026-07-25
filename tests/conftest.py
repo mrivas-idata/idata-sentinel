@@ -2,10 +2,39 @@ from __future__ import annotations
 
 import pytest
 
+from idata_sentinel.core.dns_resolver import DnsResolver
 from idata_sentinel.core.http_client import HttpClient
 from idata_sentinel.core.rate_limiter import RateLimiter
 from idata_sentinel.core.robots import RobotsPolicy
 from idata_sentinel.modules.vuln_identification.context import ScanContext
+
+
+class FakeDnsResolver(DnsResolver):
+    """Zona DNS en memoria. Hereda de `DnsResolver` y solo sustituye `query()`,
+    así `records_for()`/`txt()` ejercitan el código real sin tocar la red."""
+
+    def __init__(
+        self,
+        zone: dict[tuple[str, str], tuple[str, ...]] | None = None,
+        nxdomains: tuple[str, ...] = (),
+    ) -> None:
+        super().__init__()
+        self.zone = {(h.lower(), t.upper()): v for (h, t), v in (zone or {}).items()}
+        self.nxdomains = {h.lower() for h in nxdomains}
+        self.queries: list[tuple[str, str]] = []
+
+    async def query(self, host: str, rtype: str) -> tuple[tuple[str, ...], bool]:
+        host = host.rstrip(".").lower()
+        rtype = rtype.upper()
+        self.queries.append((host, rtype))
+        if host in self.nxdomains:
+            return (), True
+        return self.zone.get((host, rtype), ()), False
+
+
+@pytest.fixture
+def fake_dns():
+    return FakeDnsResolver
 
 
 @pytest.fixture

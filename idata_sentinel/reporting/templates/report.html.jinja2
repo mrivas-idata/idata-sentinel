@@ -46,6 +46,8 @@
   .footer-legal { font-size: 8pt; color: {{ branding.palette.text_muted }}; margin-top: 24px; }
   .semaforo-item { display: inline-block; width: 22%; margin-right: 2%; vertical-align: top; }
   .not-evaluated { opacity: 0.5; }
+  .metric { font-size: 20pt; font-weight: bold; margin-right: 6px; }
+  .metric-label { color: {{ branding.palette.text_muted }}; font-size: 9pt; margin-right: 20px; }
 </style>
 </head>
 <body>
@@ -131,11 +133,62 @@
 <!-- 5. Mapa de superficie de ataque (Módulo 2) -->
 <section class="section">
   <h2>Mapa de superficie de ataque</h2>
-  {% set assets = module_summaries | selectattr("name", "equalto", "asset_inventory") | first %}
-  {% if assets.evaluated %}
-    <p>Activos identificados: ver anexo técnico.</p>
+  {% if surface_map %}
+    {% set t = surface_map.totals %}
+    <div class="card">
+      <span class="metric">{{ t.discovered }}</span><span class="metric-label">activos inventariados</span>
+      <span class="metric">{{ t.reachable }}</span><span class="metric-label">accesibles por web</span>
+      <span class="metric">{{ t.https }}</span><span class="metric-label">sobre HTTPS</span>
+      <span class="metric">{{ t.distinct_ips }}</span><span class="metric-label">IP(s) distintas</span>
+    </div>
+
+    {% set e = surface_map.exposure_summary %}
+    {% if e.non_production or e.without_https or e.takeover_risk or e.origin_leak %}
+      <h3>Exposiciones destacadas</h3>
+      <ul>
+        {% if e.takeover_risk %}<li><span class="badge badge-high">ALTO</span> Riesgo de apropiación de subdominio: {{ e.takeover_risk | join(", ") }}</li>{% endif %}
+        {% if e.without_https %}<li><span class="badge badge-high">ALTO</span> Sin HTTPS: {{ e.without_https | join(", ") }}</li>{% endif %}
+        {% if e.non_production %}<li><span class="badge badge-medium">MEDIO</span> Entornos no productivos publicados: {{ e.non_production | join(", ") }}</li>{% endif %}
+        {% if e.origin_leak %}<li><span class="badge badge-medium">MEDIO</span> Filtración de infraestructura interna: {{ e.origin_leak | join(", ") }}</li>{% endif %}
+      </ul>
+    {% endif %}
+
+    <h3>Tabla de activos</h3>
+    <table>
+      <thead>
+        <tr><th>Activo</th><th>Origen</th><th>IP(s)</th><th>Estado</th><th>Tecnología</th><th>CDN / WAF</th></tr>
+      </thead>
+      <tbody>
+      {% for a in surface_map.assets %}
+        <tr>
+          <td>{{ a.host }}{% if a.non_production %} <span class="badge badge-medium">{{ a.non_production | upper }}</span>{% endif %}</td>
+          <td class="muted">{{ a.source }}</td>
+          <td>{{ a.ips | join(", ") or "—" }}</td>
+          <td>
+            {% if a.reachable %}{{ a.scheme | upper }} {{ a.status_code }}
+            {% elif a.resolves %}<span class="muted">resuelve, sin web</span>
+            {% else %}<span class="muted">no resuelve</span>{% endif %}
+          </td>
+          <td>{{ a.technologies | join(", ") or "—" }}</td>
+          <td>{{ (a.cdn + a.waf + a.cloud) | join(", ") or "—" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+
+    {% if surface_map.technology_index %}
+      <h3>Tecnologías por número de activos</h3>
+      <table>
+        <thead><tr><th>Tecnología</th><th>Activos</th></tr></thead>
+        <tbody>
+        {% for tech, hosts in surface_map.technology_index.items() %}
+          <tr><td>{{ tech }}</td><td>{{ hosts | join(", ") }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
   {% else %}
-    <p class="muted">No disponible en este escaneo — requiere el Módulo 2 (Inventario de activos), aún no ejecutado.</p>
+    <p class="muted">No disponible en este escaneo — requiere el Módulo 2 (Inventario de activos), no ejecutado.</p>
   {% endif %}
 </section>
 

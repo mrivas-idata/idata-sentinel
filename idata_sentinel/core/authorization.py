@@ -21,6 +21,9 @@ class AuthorizationRequest:
     audit_paths: tuple[str, ...] = ()
     audit_endpoints: tuple[str, ...] = ()
     hardening_baseline: dict = field(default_factory=dict)
+    #: Activos internos que el cliente aporta para el inventario ampliado
+    #: (plan maestro §4, modo auditoría). Se filtran contra `allowed_domains`.
+    additional_assets: tuple[str, ...] = ()
 
     def is_complete(self) -> bool:
         return bool(

@@ -75,6 +75,67 @@ def test_render_html_escapes_untrusted_content():
     assert "&lt;script&gt;" in html
 
 
+_SAMPLE_SURFACE = {
+    "apex": "example.test",
+    "totals": {"discovered": 2, "resolving": 2, "reachable": 2, "https": 1,
+               "distinct_ips": 1, "distinct_technologies": 1},
+    "assets": [
+        {"host": "example.test", "source": "target", "resolves": True, "ips": ["203.0.113.1"],
+         "cnames": [], "reachable": True, "scheme": "https", "status_code": 200, "https": True,
+         "server": "nginx", "title": "Inicio", "technologies": ["Nginx 1.18.0"],
+         "cdn": ["Cloudflare"], "waf": [], "cloud": [], "non_production": None,
+         "takeover_service": None, "dns": None},
+        {"host": "dev.example.test", "source": "crt.sh", "resolves": True, "ips": ["203.0.113.1"],
+         "cnames": [], "reachable": True, "scheme": "http", "status_code": 200, "https": False,
+         "server": None, "title": None, "technologies": [], "cdn": [], "waf": [], "cloud": [],
+         "non_production": "dev", "takeover_service": None, "dns": None},
+    ],
+    "technology_index": {"Nginx 1.18.0": ["example.test"]},
+    "provider_index": {"cdn": {"Cloudflare": ["example.test"]}, "waf": {}, "cloud": {}},
+    "ip_index": {"203.0.113.1": ["example.test", "dev.example.test"]},
+    "exposure_summary": {"non_production": ["dev.example.test"], "without_https": ["dev.example.test"],
+                         "takeover_risk": [], "without_cdn_or_waf": ["dev.example.test"],
+                         "origin_leak": []},
+}
+
+
+def _scan_with_surface() -> dict:
+    return {
+        **_SAMPLE_SCAN_RESULT,
+        "modules": {**_SAMPLE_SCAN_RESULT["modules"], "asset_inventory": []},
+        "artifacts": {"asset_inventory": {"surface_map": _SAMPLE_SURFACE}},
+    }
+
+
+def test_surface_map_is_absent_when_module_did_not_run():
+    assert build_report_context(_SAMPLE_SCAN_RESULT, _SAMPLE_RISK)["surface_map"] is None
+
+
+def test_surface_map_flows_into_the_report_context():
+    ctx = build_report_context(_scan_with_surface(), {**_SAMPLE_RISK, "module_scores": {
+        "vuln_identification": 55, "asset_inventory": 100}})
+    assert ctx["surface_map"]["totals"]["discovered"] == 2
+
+
+def test_attack_surface_section_renders_the_asset_table():
+    ctx = build_report_context(_scan_with_surface(), {**_SAMPLE_RISK, "module_scores": {
+        "vuln_identification": 55, "asset_inventory": 100}})
+    html = render_html(ctx)
+
+    assert "dev.example.test" in html
+    assert "Nginx 1.18.0" in html
+    assert "Cloudflare" in html
+    assert "Tabla de activos" in html
+    assert "requiere el Módulo 2" not in html
+
+
+def test_severity_counts_are_aggregated():
+    ctx = build_report_context(_SAMPLE_SCAN_RESULT, _SAMPLE_RISK)
+    assert ctx["severity_counts"]["critical"] == 1
+    assert ctx["severity_counts"]["medium"] == 1
+    assert ctx["severity_counts"]["low"] == 0
+
+
 @pytest.mark.integration
 def test_export_pdf_writes_file(tmp_path):
     """Requiere las librerías nativas de WeasyPrint (Pango/Cairo/GObject) —

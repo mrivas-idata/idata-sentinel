@@ -19,7 +19,7 @@ _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 @dataclass(frozen=True)
-class _Detection:
+class Detection:
     product: str
     version: str | None
 
@@ -58,6 +58,48 @@ def _severity_from_cvss(label: str) -> str:
     return {"critical": "medium", "high": "medium", "medium": "low", "low": "low"}.get(label, "low")
 
 
+def detect_technologies(resp) -> list[Detection]:
+    """Detección por firmas, reutilizable fuera de este check (p.ej. por
+    Módulo 2 — Inventario de activos — para fingerprint por subdominio)."""
+    body = resp.text
+    headers = resp.headers
+    detections: list[Detection] = []
+
+    for sig in _load_fingerprints():
+        product = sig["product"]
+        version: str | None = None
+        matched = False
+
+        header_name = sig.get("header")
+        if header_name:
+            value = headers.get(header_name, "")
+            if value:
+                m = re.search(sig.get("header_pattern", ""), value, re.IGNORECASE)
+                if m:
+                    matched = True
+                    if m.groups():
+                        version = m.group(1)
+
+        for pattern in sig.get("html_patterns", []):
+            if pattern in body:
+                matched = True
+
+        generator = sig.get("meta_generator")
+        if generator and generator.lower() in body.lower():
+            matched = True
+
+        version_pattern = sig.get("version_pattern")
+        if matched and version_pattern and not version:
+            m = re.search(version_pattern, body)
+            if m and m.groups():
+                version = m.group(1)
+
+        if matched:
+            detections.append(Detection(product=product, version=version))
+
+    return detections
+
+
 class TechFingerprintCheck(BaseCheck):
     id = "tech_fingerprint"
     category = "Fingerprint"
@@ -72,50 +114,11 @@ class TechFingerprintCheck(BaseCheck):
             )]
 
         out: list[CheckResult] = []
-        for detection in self._detect(outcome.response):
+        for detection in detect_technologies(outcome.response):
             out.extend(self._result_for_detection(detection))
         return out
 
-    def _detect(self, resp) -> list[_Detection]:
-        body = resp.text
-        headers = resp.headers
-        detections: list[_Detection] = []
-
-        for sig in _load_fingerprints():
-            product = sig["product"]
-            version: str | None = None
-            matched = False
-
-            header_name = sig.get("header")
-            if header_name:
-                value = headers.get(header_name, "")
-                if value:
-                    m = re.search(sig.get("header_pattern", ""), value, re.IGNORECASE)
-                    if m:
-                        matched = True
-                        if m.groups():
-                            version = m.group(1)
-
-            for pattern in sig.get("html_patterns", []):
-                if pattern in body:
-                    matched = True
-
-            generator = sig.get("meta_generator")
-            if generator and generator.lower() in body.lower():
-                matched = True
-
-            version_pattern = sig.get("version_pattern")
-            if matched and version_pattern and not version:
-                m = re.search(version_pattern, body)
-                if m and m.groups():
-                    version = m.group(1)
-
-            if matched:
-                detections.append(_Detection(product=product, version=version))
-
-        return detections
-
-    def _result_for_detection(self, d: _Detection) -> list[CheckResult]:
+    def _result_for_detection(self, d: Detection) -> list[CheckResult]:
         out: list[CheckResult] = []
         if d.version:
             out.append(self._result(

@@ -1,0 +1,210 @@
+"""Runner del Módulo 2 — Inventario de activos tecnológicos (plan maestro §4).
+
+Flujo: descubrir (CT logs) → perfilar cada activo (DNS + un único GET) →
+evaluar → correlacionar en el mapa de superficie de ataque.
+
+Cada activo se toca **una sola vez** en red y pasa por el rate limiter, que es
+por-host: perfilar 25 subdominios en paralelo no viola el límite de ≥2 s por
+dominio del modo pasivo (§1.2).
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+
+from idata_sentinel.checks.asset_exposure import AssetExposureCheck, SubdomainTakeoverCheck
+from idata_sentinel.checks.cloud_waf import detect_providers, leaked_origin
+from idata_sentinel.checks.dns_email import DnsEmailCheck
+from idata_sentinel.checks.subdomains import discover_subdomains
+from idata_sentinel.checks.takeover import evaluate_takeover
+from idata_sentinel.checks.tech_fingerprint import detect_technologies
+from idata_sentinel.core.check_base import CheckResult
+from idata_sentinel.core.dns_resolver import DnsResolver
+from idata_sentinel.core.engine import ModuleOutput, RunParams
+from idata_sentinel.modules.asset_inventory.context import (
+    AssetInventoryContext,
+    AssetProfile,
+    extract_title,
+)
+from idata_sentinel.modules.asset_inventory.surface import build_surface_map
+
+logger = logging.getLogger(__name__)
+
+_BODY_SNIPPET_BYTES = 8000
+
+
+class AssetInventoryModule:
+    name = "asset_inventory"
+
+    def __init__(self, *, max_assets: int = 25) -> None:
+        self.max_assets = max_assets
+
+    async def run(self, params: RunParams) -> ModuleOutput:
+        ctx = self._build_context(params)
+        discovered = await self._discover(ctx)
+
+        profiles = await asyncio.gather(
+            *(self._safe_profile(ctx, host, source) for host, source in discovered)
+        )
+
+        findings: list[CheckResult] = []
+        takeover_check = SubdomainTakeoverCheck()
+        exposure_check = AssetExposureCheck()
+        for profile in profiles:
+            findings.extend(takeover_check.evaluate(profile))
+            findings.extend(exposure_check.evaluate(profile))
+
+        findings.extend(await self._apex_findings(ctx, profiles))
+
+        surface = build_surface_map(list(profiles), apex=ctx.host)
+        findings.append(self._summary(surface, ctx))
+
+        return ModuleOutput(
+            findings=[f.to_dict() for f in findings],
+            artifacts={"surface_map": surface},
+        )
+
+    # -- contexto y descubrimiento ------------------------------------------
+
+    def _build_context(self, params: RunParams) -> AssetInventoryContext:
+        authorization = params.authorization
+        allowed = authorization.allowed_domains if authorization and params.authorized else ()
+        extra = authorization.additional_assets if authorization and params.authorized else ()
+        return AssetInventoryContext(
+            target=params.target,
+            host=params.host,
+            mode=params.mode,  # type: ignore[arg-type]
+            http=params.http,
+            rate_limiter=params.rate_limiter,
+            dns=params.dns or DnsResolver(),
+            authorized=params.authorized,
+            allowed_domains=allowed,
+            additional_assets=extra,
+            max_assets=self.max_assets,
+        )
+
+    async def _discover(self, ctx: AssetInventoryContext) -> list[tuple[str, str]]:
+        """El host objetivo siempre entra. Los subdominios salen de CT logs; los
+        activos del cliente solo se aceptan dentro del scope autorizado (§1.1)."""
+        ordered: dict[str, str] = {ctx.host: "target"}
+
+        try:
+            for host in await discover_subdomains(ctx.http, ctx.host, limit=ctx.max_assets):
+                ordered.setdefault(host, "crt.sh")
+        except Exception:  # el descubrimiento nunca puede tumbar el módulo
+            logger.exception("descubrimiento de subdominios falló para %s", ctx.host)
+
+        for host in ctx.additional_assets:
+            host = host.strip().lower().rstrip(".")
+            if host and ctx.in_scope(host):
+                ordered[host] = "client"
+
+        return list(ordered.items())[: ctx.max_assets]
+
+    # -- perfilado -----------------------------------------------------------
+
+    async def _safe_profile(
+        self, ctx: AssetInventoryContext, host: str, source: str
+    ) -> AssetProfile:
+        try:
+            return await self._profile(ctx, host, source)
+        except Exception:  # un activo problemático no invalida el inventario
+            logger.exception("perfilado de %s falló", host)
+            return AssetProfile(host=host, source=source)
+
+    async def _profile(
+        self, ctx: AssetInventoryContext, host: str, source: str
+    ) -> AssetProfile:
+        records = await ctx.dns.records_for(host)
+        profile = AssetProfile(host=host, source=source, dns=records)
+
+        if records.resolves:
+            scheme, response = await self._probe(ctx, host)
+            if response is not None:
+                set_cookies = tuple(response.headers.get_list("set-cookie"))
+                profile.reachable = True
+                profile.scheme = scheme
+                profile.status_code = response.status_code
+                profile.server = response.headers.get("server")
+                profile.set_cookies = set_cookies
+                profile.body_snippet = self._body_of(response)
+                profile.title = extract_title(profile.body_snippet)
+                profile.technologies = tuple(detect_technologies(response))
+                profile.cloud = detect_providers(
+                    response.headers, set_cookies=set_cookies, cnames=profile.cnames
+                )
+                profile.origin_leak = leaked_origin(response.headers)
+
+        profile.takeover = evaluate_takeover(
+            profile.cnames, cname_resolves=records.resolves, body=profile.body_snippet
+        )
+        return profile
+
+    async def _probe(self, ctx: AssetInventoryContext, host: str):
+        """HTTPS primero; HTTP solo como fallback, para poder distinguir
+        'no responde' de 'responde pero sin TLS'."""
+        for scheme in ("https", "http"):
+            await ctx.rate_limiter.wait(host)
+            outcome = await ctx.http.get(f"{scheme}://{host}/", follow_redirects=True)
+            if outcome.ok:
+                return scheme, outcome.response
+        return None, None
+
+    @staticmethod
+    def _body_of(response) -> str:
+        content_type = response.headers.get("content-type", "")
+        if content_type and not content_type.startswith(("text/", "application/json", "application/xml")):
+            return ""
+        try:
+            return response.text[:_BODY_SNIPPET_BYTES]
+        except (UnicodeDecodeError, ValueError):
+            return ""
+
+    # -- hallazgos de dominio ------------------------------------------------
+
+    async def _apex_findings(
+        self, ctx: AssetInventoryContext, profiles: tuple[AssetProfile, ...]
+    ) -> list[CheckResult]:
+        apex = next((p for p in profiles if p.host == ctx.host), None)
+        if apex is None or apex.dns is None:
+            return []
+        check = DnsEmailCheck()
+        try:
+            return await check.evaluate(ctx.host, apex.dns, ctx.dns)
+        except Exception as e:
+            logger.exception("DnsEmailCheck falló para %s", ctx.host)
+            return [check._error_result(
+                sub_id=f"dns_email_error@{ctx.host}",
+                reason=f"Error interno: {type(e).__name__}: {e}",
+                evidence=str(e),
+            )]
+
+    def _summary(self, surface: dict, ctx: AssetInventoryContext) -> CheckResult:
+        totals = surface["totals"]
+        exposure = surface["exposure_summary"]
+        check = AssetExposureCheck()
+        return check._result(
+            sub_id=f"attack_surface_summary@{ctx.host}",
+            severity="info", likelihood="low", status="info",
+            title=f"Superficie de ataque de {ctx.host}: {totals['reachable']} activo(s) accesible(s)",
+            finding=(
+                f"Se inventariaron {totals['discovered']} activo(s): {totals['resolving']} resuelven en DNS, "
+                f"{totals['reachable']} responden por web ({totals['https']} sobre HTTPS). "
+                f"{totals['distinct_ips']} IP(s) y {totals['distinct_technologies']} tecnología(s) distintas."
+            ),
+            business_impact=(
+                "Cada activo accesible es una puerta potencial. Conocer el inventario completo es "
+                "el requisito previo a cualquier control: no se protege lo que no se sabe que existe."
+            ),
+            recommendation=(
+                "Validar que todos los activos listados sean conocidos y necesarios; "
+                "retirar de Internet los que no lo sean."
+            ),
+            evidence=(
+                f"No productivos expuestos: {len(exposure['non_production'])}; "
+                f"sin HTTPS: {len(exposure['without_https'])}; "
+                f"riesgo de takeover: {len(exposure['takeover_risk'])}; "
+                f"sin CDN/WAF: {len(exposure['without_cdn_or_waf'])}"
+            ),
+            references=("CIS Control 1",),
+        )

@@ -1,0 +1,99 @@
+# Firmas de CDN / WAF / proveedor cloud (plan maestro §4 — Módulo 2).
+# Se detectan por cabeceras de respuesta, cookies o el CNAME del activo.
+# Curado a mano; ampliar según lo observado en escaneos reales.
+#
+# kind: cdn | waf | cloud   (un proveedor puede aparecer en varias entradas)
+
+- name: Cloudflare
+  kind: cdn
+  headers: [cf-ray, cf-cache-status]
+  server_patterns: ["cloudflare"]
+  cname_suffixes: [".cloudflare.net", ".cdn.cloudflare.net"]
+
+- name: Cloudflare WAF
+  kind: waf
+  headers: [cf-mitigated]
+  cookies: ["__cf_bm", "cf_clearance"]
+
+- name: Amazon CloudFront
+  kind: cdn
+  headers: [x-amz-cf-id, x-amz-cf-pop]
+  cname_suffixes: [".cloudfront.net"]
+
+- name: AWS WAF
+  kind: waf
+  headers: [x-amzn-waf-action]
+
+- name: Amazon Web Services
+  kind: cloud
+  headers: [x-amz-request-id, x-amz-id-2]
+  cookies: ["awsalb", "awsalbcors"]
+  cname_suffixes: [".amazonaws.com", ".elb.amazonaws.com", ".s3.amazonaws.com"]
+
+- name: Akamai
+  kind: cdn
+  headers: [x-akamai-transformed, akamai-grn]
+  server_patterns: ["akamai"]
+  cname_suffixes: [".akamaiedge.net", ".edgekey.net", ".akamaized.net"]
+
+- name: Fastly
+  kind: cdn
+  headers: [x-fastly-request-id]
+  server_patterns: ["fastly"]
+  cname_suffixes: [".fastly.net", ".fastlylb.net"]
+
+- name: Microsoft Azure
+  kind: cloud
+  headers: [x-azure-ref, x-ms-request-id]
+  cname_suffixes: [".azurewebsites.net", ".cloudapp.azure.com", ".azureedge.net", ".azurefd.net"]
+
+- name: Google Cloud
+  kind: cloud
+  headers: [x-goog-generation, x-guploader-uploadid]
+  server_patterns: ["gse", "google frontend"]
+  cname_suffixes: [".googleusercontent.com", ".appspot.com", ".ghs.googlehosted.com"]
+
+- name: Vercel
+  kind: cloud
+  headers: [x-vercel-id, x-vercel-cache]
+  cname_suffixes: [".vercel-dns.com", ".vercel.app"]
+
+- name: Netlify
+  kind: cloud
+  headers: [x-nf-request-id]
+  server_patterns: ["netlify"]
+  cname_suffixes: [".netlify.app", ".netlifyglobalcdn.com"]
+
+- name: Imperva
+  kind: waf
+  headers: [x-iinfo, x-cdn]
+  cookies: ["incap_ses", "visid_incap"]
+
+- name: Sucuri
+  kind: waf
+  headers: [x-sucuri-id, x-sucuri-cache]
+  server_patterns: ["sucuri"]
+
+- name: F5 BIG-IP
+  kind: waf
+  cookies: ["bigipserver"]
+
+- name: Heroku
+  kind: cloud
+  server_patterns: ["cowboy"]
+  cname_suffixes: [".herokuapp.com", ".herokudns.com"]
+
+- name: Shopify
+  kind: cloud
+  headers: [x-shopify-stage, x-shopid]
+  cname_suffixes: [".myshopify.com", "shops.myshopify.com"]
+
+- name: GitHub Pages
+  kind: cloud
+  server_patterns: ["github.com"]
+  cname_suffixes: [".github.io"]
+
+- name: WordPress.com / Automattic
+  kind: cloud
+  headers: [x-ac]
+  cname_suffixes: [".wordpress.com", ".wpengine.com"]

@@ -7,3 +7,6 @@ audit_log.json
 dist/
 *.db
 .env
+.coverage
+htmlcov/
+.claude/scheduled_tasks.lock

@@ -11,6 +11,7 @@ from rich.table import Table
 
 from idata_sentinel.core.authorization import AuthorizationRequest
 from idata_sentinel.core.engine import Engine, ScanRequest
+from idata_sentinel.modules.asset_inventory.module import AssetInventoryModule
 from idata_sentinel.modules.vuln_identification.module import VulnIdentificationModule
 from idata_sentinel.reporting.pdf_export import export_pdf
 from idata_sentinel.reporting.report_builder import build_report_context
@@ -18,6 +19,12 @@ from idata_sentinel.scoring.risk_engine import calculate
 
 app = typer.Typer(help="IDATA Sentinel — diagnóstico de seguridad web.")
 console = Console()
+
+#: Alias corto (CLI) -> nombre interno del módulo.
+MODULE_ALIASES = {
+    "vuln": "vuln_identification",
+    "assets": "asset_inventory",
+}
 
 _SEVERITY_STYLE = {
     "critical": "bold red",
@@ -32,21 +39,33 @@ _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 def _build_engine() -> Engine:
     engine = Engine()
     engine.register_module(VulnIdentificationModule())
+    engine.register_module(AssetInventoryModule())
     return engine
+
+
+def _resolve_modules(raw: str) -> list[str] | None:
+    """'all' (o vacío) = todos los registrados; si no, lista separada por comas
+    con alias cortos (`vuln,assets`) o nombres internos."""
+    raw = (raw or "").strip().lower()
+    if not raw or raw == "all":
+        return None
+    return [MODULE_ALIASES.get(name.strip(), name.strip()) for name in raw.split(",") if name.strip()]
 
 
 @app.command()
 def scan(
     target: str = typer.Argument(..., help="URL objetivo, p.ej. https://ejemplo.cl"),
     mode: str = typer.Option("passive", "--mode", help="passive | audit"),
+    modules: str = typer.Option("all", "--modules", help="all | vuln,assets"),
     i_have_authorization: bool = typer.Option(False, "--i-have-authorization"),
     authorized_by: str = typer.Option("", "--authorized-by", help="Nombre, cargo de quien autoriza"),
     contract: str = typer.Option("", "--contract", help="N° de contrato/orden"),
     allowed_domain: list[str] = typer.Option([], "--allowed-domain", help="Dominio en scope (repetible)"),
+    asset: list[str] = typer.Option([], "--asset", help="Activo adicional del cliente (solo audit, repetible)"),
     json_output: Path = typer.Option(None, "--json", help="Ruta para exportar el resultado en JSON"),
     pdf_output: Path = typer.Option(None, "--pdf", help="Ruta para exportar el reporte ejecutivo en PDF"),
 ) -> None:
-    """Ejecuta un escaneo de vulnerabilidades (Módulo 1) contra TARGET."""
+    """Ejecuta un escaneo de diagnóstico contra TARGET."""
     if mode not in ("passive", "audit"):
         console.print(f"[red]Modo inválido: {mode}. Usa 'passive' o 'audit'.[/red]")
         raise typer.Exit(code=1)
@@ -59,10 +78,13 @@ def scan(
             authorized_by=authorized_by,
             contract_reference=contract,
             confirmed=i_have_authorization,
+            additional_assets=tuple(asset),
         )
 
     engine = _build_engine()
-    request = ScanRequest(target=target, mode=mode, authorization=authorization)
+    request = ScanRequest(
+        target=target, mode=mode, modules=_resolve_modules(modules), authorization=authorization
+    )
     result = asyncio.run(engine.scan(request))
 
     risk = calculate(result["modules"])

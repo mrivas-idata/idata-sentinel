@@ -1,0 +1,81 @@
+# Firmas de riesgo de subdomain takeover (plan maestro §4 — Módulo 2).
+#
+# DETECCIÓN EXCLUSIVAMENTE. IDATA Sentinel jamás reclama, registra ni ocupa el
+# recurso huérfano: eso sería tomar control de infraestructura ajena. Se limita a
+# observar dos señales públicas y reportar el riesgo (§1.2 "sin explotación").
+#
+# Señales:
+#   1. El activo tiene un CNAME hacia un proveedor SaaS conocido, y
+#   2. ese destino no resuelve (NXDOMAIN) o el proveedor devuelve su página de
+#      "recurso no reclamado" — cuya firma textual está en `body_patterns`.
+#
+# Solo cuando ambas se cumplen se emite el hallazgo, para evitar falsos positivos
+# sobre servicios legítimamente activos.
+
+- service: Amazon S3
+  cname_suffixes: [".s3.amazonaws.com", ".s3-website.amazonaws.com"]
+  body_patterns: ["NoSuchBucket", "The specified bucket does not exist"]
+
+- service: GitHub Pages
+  cname_suffixes: [".github.io"]
+  body_patterns: ["There isn't a GitHub Pages site here"]
+
+- service: Heroku
+  cname_suffixes: [".herokuapp.com", ".herokudns.com"]
+  body_patterns: ["No such app", "herokucdn.com/error-pages/no-such-app.html"]
+
+- service: Microsoft Azure
+  cname_suffixes: [".azurewebsites.net", ".cloudapp.azure.com", ".trafficmanager.net"]
+  body_patterns: ["404 Web Site not found", "Error 404 - Web app not found"]
+
+- service: Netlify
+  cname_suffixes: [".netlify.app", ".netlify.com"]
+  body_patterns: ["Not Found - Request ID"]
+
+- service: Vercel
+  cname_suffixes: [".vercel.app", ".vercel-dns.com"]
+  body_patterns: ["The deployment could not be found", "DEPLOYMENT_NOT_FOUND"]
+
+- service: Shopify
+  cname_suffixes: [".myshopify.com"]
+  body_patterns: ["Sorry, this shop is currently unavailable"]
+
+- service: Fastly
+  cname_suffixes: [".fastly.net"]
+  body_patterns: ["Fastly error: unknown domain"]
+
+- service: Pantheon
+  cname_suffixes: [".pantheonsite.io"]
+  body_patterns: ["The gods are wise, but do not know of the site which you seek"]
+
+- service: Surge.sh
+  cname_suffixes: [".surge.sh"]
+  body_patterns: ["project not found"]
+
+- service: Bitbucket
+  cname_suffixes: [".bitbucket.io"]
+  body_patterns: ["Repository not found"]
+
+- service: Zendesk
+  cname_suffixes: [".zendesk.com"]
+  body_patterns: ["Help Center Closed"]
+
+- service: Read the Docs
+  cname_suffixes: [".readthedocs.io"]
+  body_patterns: ["unknown to Read the Docs"]
+
+- service: Ghost
+  cname_suffixes: [".ghost.io"]
+  body_patterns: ["Domain error", "site is no longer available"]
+
+- service: Statuspage
+  cname_suffixes: [".statuspage.io"]
+  body_patterns: ["You are being redirected", "Statuspage | Hosted Status Pages"]
+
+- service: WP Engine
+  cname_suffixes: [".wpengine.com"]
+  body_patterns: ["The site you were looking for couldn't be found"]
+
+- service: Tumblr
+  cname_suffixes: [".tumblr.com"]
+  body_patterns: ["Whatever you were looking for doesn't currently exist at this address"]
