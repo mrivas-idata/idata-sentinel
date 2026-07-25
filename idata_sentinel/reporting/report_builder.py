@@ -7,6 +7,14 @@ from pathlib import Path
 
 import yaml
 
+from idata_sentinel.reporting.charts import (
+    grade_color,
+    severity_color,
+    severity_label,
+    severity_segments,
+    sparkline,
+)
+
 _BRANDING_PATH = Path(__file__).resolve().parent.parent / "branding" / "idata.yaml"
 
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
@@ -69,9 +77,22 @@ def build_report_context(scan_result: dict, risk: dict, *, report_number: str | 
         "all_findings": actionable,
         "total_findings": len(actionable),
         "severity_counts": severity_counts,
+        "severity_segments": severity_segments(severity_counts),
+        "grade_color": grade_color(risk["grade"]),
+        "severity_color": severity_color,
+        "severity_label": severity_label,
         "surface_map": _artifact(scan_result, "asset_inventory", "surface_map"),
         "compliance": _artifact(scan_result, "data_privacy", "compliance_21719"),
+        "monitoring": _artifact(scan_result, "monitoring", "monitoring"),
+        "trend_spark": _trend_spark(scan_result),
     }
+
+
+def _trend_spark(scan_result: dict):
+    """Sparkline de la tendencia, si el Módulo 4 aportó su histórico (§6)."""
+    monitoring = _artifact(scan_result, "monitoring", "monitoring") or {}
+    points = (monitoring.get("trend") or {}).get("points") or []
+    return sparkline([p["score"] for p in points], width=420, height=90) if len(points) > 1 else None
 
 
 def _artifact(scan_result: dict, module: str, key: str) -> dict | None:

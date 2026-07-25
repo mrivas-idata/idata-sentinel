@@ -1,0 +1,54 @@
+# CI de IDATA Sentinel (plan maestro §11.6).
+#
+# Railway solo hace build+deploy: no reemplaza el gate de tests. Este workflow
+# tiene que estar verde antes de que un cambio llegue a producción.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master, plan-completo]
+  pull_request:
+
+jobs:
+  test:
+    name: Tests y cobertura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Instalar Python
+        run: uv python install 3.12
+
+      # Las nativas de WeasyPrint permiten correr también los tests de
+      # integración que generan el PDF real (plan §11.4).
+      - name: Dependencias nativas de WeasyPrint
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 \
+            libffi-dev shared-mime-info
+
+      - name: Instalar dependencias
+        run: uv sync --frozen
+
+      - name: Tests offline con umbral de cobertura
+        run: uv run pytest --cov=idata_sentinel --cov-report=term-missing --cov-fail-under=90
+
+      - name: Tests de integración (PDF real)
+        run: uv run pytest -m integration -p no:cacheprovider
+
+  docker:
+    name: Build de la imagen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagen
+        run: docker build -t idata-sentinel:ci .
+      - name: Verificar que la CLI arranca en la imagen
+        run: docker run --rm idata-sentinel:ci idata-sentinel help

@@ -10,7 +10,10 @@
     Analiza cómo está configurado el sitio y qué revela sin querer. Es el corazón
     técnico del diagnóstico y alimenta el score global.
   what_it_does:
-    - "Cabeceras de seguridad HTTP: HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy y las cabeceras de aislamiento COOP/COEP/CORP."
+    - "Cabeceras de seguridad HTTP: HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy y Permissions-Policy."
+    - "Aislamiento de origen (COOP/CORP): la defensa actual contra XS-Leaks y tabnabbing."
+    - "Calidad real de la CSP, no solo su presencia: falta de base-uri (la evasión de nonces más común), object-src sin restringir, listas de dominios sin nonce ni hash, y políticas que solo están en modo reporte."
+    - "CORS: comodín combinado con credenciales, y aceptación del origen 'null'."
     - "TLS/SSL: versión de protocolo, cifradores débiles, validez y vencimiento del certificado, cadena de confianza y redirección forzada a HTTPS."
     - "Cookies: flags Secure, HttpOnly y SameSite en cada cookie emitida."
     - "Fingerprint de tecnología y versión expuesta, con CVEs conocidas cruzadas de forma informativa."
@@ -20,6 +23,8 @@
     - "hsts_missing — el navegador puede ser degradado a HTTP."
     - "cert_expired / cert_expiring_soon — el sitio queda inutilizable o a días de estarlo."
     - "tls_legacy_protocol — se acepta TLS 1.0/1.1, criptografía rota."
+    - "csp_missing_base_uri — la CSP existe pero se evade inyectando una etiqueta <base>."
+    - "cors_wildcard_with_credentials — cualquier origen podría leer datos autenticados."
     - "cve_informational — versión con CVEs publicadas. Nunca se comprueba explotabilidad."
   legal: >-
     Todos los checks son observacionales. No se prueban credenciales, no se
