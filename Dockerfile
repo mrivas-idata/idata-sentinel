@@ -25,10 +25,13 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 WORKDIR /app
 
 # Las dependencias se instalan antes que el código para que un cambio de fuente
-# no invalide la capa de dependencias.
+# no invalide esta capa. `--no-install-project` es imprescindible aquí: sin él,
+# uv intentaría instalar el paquete cuando `idata_sentinel/` todavía no existe y
+# el editable install quedaría apuntando al vacío.
 COPY pyproject.toml uv.lock README.md ./
-RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev
+RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev --no-install-project
 
+# Ahora sí el código, y con él la instalación del propio paquete.
 COPY idata_sentinel ./idata_sentinel
 RUN uv sync --frozen --no-dev
 
