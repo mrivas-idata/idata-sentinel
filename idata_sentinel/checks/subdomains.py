@@ -17,11 +17,29 @@ CRT_SH_URL = "https://crt.sh/?q=%25.{domain}&output=json"
 #: rate limit del modo pasivo es de >=2s por host (§1.2).
 DEFAULT_MAX_SUBDOMAINS = 25
 
+#: crt.sh consulta una base enorme y con frecuencia tarda más que un sitio web
+#: normal. Con el timeout estándar de 10s el descubrimiento fallaba a menudo.
+CRT_SH_TIMEOUT = 30.0
+
 
 @dataclass(frozen=True)
 class DiscoveredAsset:
     host: str
     source: str  # "target" | "crt.sh" | "client"
+
+
+@dataclass(frozen=True)
+class DiscoveryResult:
+    """Distingue "no hay subdominios" de "no pude averiguarlo".
+
+    Devolver una lista vacía en ambos casos hacía que un fallo de crt.sh
+    produjera un inventario incompleto sin que nadie lo notara: el cliente
+    leería "1 activo descubierto" y creería que esa es toda su superficie.
+    """
+
+    hosts: list[str]
+    ok: bool = True
+    reason: str = ""
 
 
 def parse_crtsh(payload: str, domain: str, *, limit: int = DEFAULT_MAX_SUBDOMAINS) -> list[str]:
@@ -55,11 +73,21 @@ def parse_crtsh(payload: str, domain: str, *, limit: int = DEFAULT_MAX_SUBDOMAIN
 
 async def discover_subdomains(
     http: HttpClient, domain: str, *, limit: int = DEFAULT_MAX_SUBDOMAINS
-) -> list[str]:
-    """Nunca lanza: es descubrimiento, no un check. Ante cualquier problema
-    (crt.sh caído, respuesta inesperada) devuelve una lista vacía y el escaneo
-    continúa con el dominio principal."""
-    outcome = await http.get(CRT_SH_URL.format(domain=domain))
-    if not outcome.ok or outcome.response.status_code != 200:
-        return []
-    return parse_crtsh(outcome.response.text, domain, limit=limit)
+) -> DiscoveryResult:
+    """Nunca lanza: es descubrimiento, no un check. Ante cualquier problema el
+    escaneo continúa con el dominio principal, pero el resultado deja constancia
+    de que la fuente no estuvo disponible."""
+    outcome = await http.get(CRT_SH_URL.format(domain=domain), timeout=CRT_SH_TIMEOUT)
+
+    if not outcome.ok:
+        motivo = outcome.error.value if outcome.error else "desconocido"
+        return DiscoveryResult([], ok=False, reason=f"crt.sh no respondió ({motivo})")
+    if outcome.response.status_code != 200:
+        return DiscoveryResult(
+            [], ok=False, reason=f"crt.sh devolvió HTTP {outcome.response.status_code}"
+        )
+
+    hosts = parse_crtsh(outcome.response.text, domain, limit=limit)
+    if not hosts and outcome.response.text.strip() not in ("[]", ""):
+        return DiscoveryResult([], ok=False, reason="crt.sh devolvió una respuesta ilegible")
+    return DiscoveryResult(hosts)

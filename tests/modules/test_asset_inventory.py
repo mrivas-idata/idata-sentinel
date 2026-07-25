@@ -130,6 +130,32 @@ async def test_target_is_always_included_even_if_discovery_fails(fake_dns):
 
 
 @respx.mock
+async def test_a_failed_discovery_is_declared_not_hidden(fake_dns):
+    """Un inventario incompleto presentado como completo es peor que no tenerlo:
+    el cliente creería que esa es toda su superficie de ataque."""
+    respx.get(url__startswith="https://crt.sh/").mock(side_effect=httpx.ReadTimeout("lento"))
+    respx.get(url__regex=r"https://.*idata\.test/").mock(return_value=httpx.Response(200, text="ok"))
+
+    output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
+
+    warning = next(
+        f for f in output.findings if f["id"].startswith("asset_discovery_incomplete")
+    )
+    assert warning["status"] == "warning"
+    assert "incompleto" in warning["finding"]
+    assert output.artifacts["surface_map"]["discovery_complete"] is False
+
+
+@respx.mock
+async def test_a_complete_discovery_is_marked_as_such(fake_dns):
+    _mock_web()
+    output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
+
+    assert output.artifacts["surface_map"]["discovery_complete"] is True
+    assert not any(f["id"].startswith("asset_discovery_incomplete") for f in output.findings)
+
+
+@respx.mock
 async def test_unresolvable_asset_is_inventoried_but_not_probed(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh("gone." + APEX))
     web = respx.get(url__regex=r"https://[^/]*idata\.test/").mock(

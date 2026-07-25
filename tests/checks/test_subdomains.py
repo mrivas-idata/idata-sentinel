@@ -42,18 +42,70 @@ async def test_discover_subdomains_happy_path():
         return_value=httpx.Response(200, text=_payload("api.idata.test"))
     )
     async with HttpClient() as http:
-        assert await discover_subdomains(http, DOMAIN) == ["api.idata.test"]
+        result = await discover_subdomains(http, DOMAIN)
+        assert result.hosts == ["api.idata.test"]
+        assert result.ok is True
 
 
 @respx.mock
-async def test_discover_subdomains_returns_empty_when_crtsh_is_down():
+async def test_http_error_is_reported_as_a_failed_discovery():
+    """Distinguir "no hay subdominios" de "no pude averiguarlo": un fallo
+    silencioso produce un inventario incompleto que nadie cuestiona."""
     respx.get(url__startswith="https://crt.sh/").mock(return_value=httpx.Response(503))
     async with HttpClient() as http:
-        assert await discover_subdomains(http, DOMAIN) == []
+        result = await discover_subdomains(http, DOMAIN)
+
+    assert result.hosts == []
+    assert result.ok is False
+    assert "503" in result.reason
 
 
 @respx.mock
-async def test_discover_subdomains_never_raises_on_network_error():
+async def test_network_error_never_raises_but_is_recorded():
     respx.get(url__startswith="https://crt.sh/").mock(side_effect=httpx.ConnectError("down"))
     async with HttpClient() as http:
-        assert await discover_subdomains(http, DOMAIN) == []
+        result = await discover_subdomains(http, DOMAIN)
+
+    assert result.ok is False
+    assert "no respondió" in result.reason
+
+
+@respx.mock
+async def test_timeout_is_recorded_as_a_failure():
+    """crt.sh es lento de verdad: el timeout es el fallo más frecuente."""
+    respx.get(url__startswith="https://crt.sh/").mock(side_effect=httpx.ReadTimeout("lento"))
+    async with HttpClient() as http:
+        result = await discover_subdomains(http, DOMAIN)
+
+    assert result.ok is False
+    assert "timeout" in result.reason
+
+
+@respx.mock
+async def test_an_empty_certificate_log_is_a_valid_answer():
+    """Un dominio sin certificados registrados no es un fallo."""
+    respx.get(url__startswith="https://crt.sh/").mock(return_value=httpx.Response(200, text="[]"))
+    async with HttpClient() as http:
+        result = await discover_subdomains(http, DOMAIN)
+
+    assert result.hosts == []
+    assert result.ok is True
+
+
+@respx.mock
+async def test_unreadable_response_is_a_failure():
+    respx.get(url__startswith="https://crt.sh/").mock(
+        return_value=httpx.Response(200, text="<html>error interno</html>")
+    )
+    async with HttpClient() as http:
+        assert (await discover_subdomains(http, DOMAIN)).ok is False
+
+
+@respx.mock
+async def test_discovery_uses_a_longer_timeout_than_a_normal_request():
+    route = respx.get(url__startswith="https://crt.sh/").mock(
+        return_value=httpx.Response(200, text="[]")
+    )
+    async with HttpClient() as http:
+        await discover_subdomains(http, DOMAIN)
+    assert route.called

@@ -77,7 +77,12 @@ class HttpClient:
         )
 
     async def get(
-        self, url: str, *, headers: dict[str, str] | None = None, follow_redirects: bool = True
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        follow_redirects: bool = True,
+        timeout: float | None = None,
     ) -> FetchOutcome:
         host = urlparse(url).netloc
         count = self._request_counts.get(host, 0)
@@ -87,7 +92,12 @@ class HttpClient:
         self._request_counts[host] = count + 1
 
         try:
-            resp = await self._client.get(url, headers=headers, follow_redirects=follow_redirects)
+            resp = await self._client.get(
+                url,
+                headers=headers,
+                follow_redirects=follow_redirects,
+                **({"timeout": timeout} if timeout is not None else {}),
+            )
         except httpx.TooManyRedirects:
             logger.info("Demasiadas redirecciones en %s", url)
             return FetchOutcome(response=None, error=FetchError.TOO_MANY_REDIRECTS)

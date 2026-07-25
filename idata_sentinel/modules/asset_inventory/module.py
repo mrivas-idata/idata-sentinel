@@ -15,7 +15,7 @@ import logging
 from idata_sentinel.checks.asset_exposure import AssetExposureCheck, SubdomainTakeoverCheck
 from idata_sentinel.checks.cloud_waf import detect_providers, leaked_origin
 from idata_sentinel.checks.dns_email import DnsEmailCheck
-from idata_sentinel.checks.subdomains import discover_subdomains
+from idata_sentinel.checks.subdomains import DiscoveryResult, discover_subdomains
 from idata_sentinel.checks.takeover import evaluate_takeover
 from idata_sentinel.checks.tech_fingerprint import detect_technologies
 from idata_sentinel.core.check_base import CheckResult
@@ -41,7 +41,7 @@ class AssetInventoryModule:
 
     async def run(self, params: RunParams) -> ModuleOutput:
         ctx = self._build_context(params)
-        discovered = await self._discover(ctx)
+        discovered, discovery = await self._discover(ctx)
 
         profiles = await asyncio.gather(
             *(self._safe_profile(ctx, host, source) for host, source in discovered)
@@ -57,6 +57,9 @@ class AssetInventoryModule:
         findings.extend(await self._apex_findings(ctx, profiles))
 
         surface = build_surface_map(list(profiles), apex=ctx.host)
+        surface["discovery_complete"] = discovery.ok
+        if not discovery.ok:
+            findings.append(self._degraded_discovery(ctx, discovery.reason))
         findings.append(self._summary(surface, ctx))
 
         return ModuleOutput(
@@ -83,23 +86,52 @@ class AssetInventoryModule:
             max_assets=self.max_assets,
         )
 
-    async def _discover(self, ctx: AssetInventoryContext) -> list[tuple[str, str]]:
+    async def _discover(
+        self, ctx: AssetInventoryContext
+    ) -> tuple[list[tuple[str, str]], DiscoveryResult]:
         """El host objetivo siempre entra. Los subdominios salen de CT logs; los
         activos del cliente solo se aceptan dentro del scope autorizado (§1.1)."""
         ordered: dict[str, str] = {ctx.host: "target"}
 
         try:
-            for host in await discover_subdomains(ctx.http, ctx.host, limit=ctx.max_assets):
-                ordered.setdefault(host, "crt.sh")
-        except Exception:  # el descubrimiento nunca puede tumbar el módulo
+            discovery = await discover_subdomains(ctx.http, ctx.host, limit=ctx.max_assets)
+        except Exception as e:  # el descubrimiento nunca puede tumbar el módulo
             logger.exception("descubrimiento de subdominios falló para %s", ctx.host)
+            discovery = DiscoveryResult([], ok=False, reason=f"error interno: {type(e).__name__}")
+
+        for host in discovery.hosts:
+            ordered.setdefault(host, "crt.sh")
 
         for host in ctx.additional_assets:
             host = host.strip().lower().rstrip(".")
             if host and ctx.in_scope(host):
                 ordered[host] = "client"
 
-        return list(ordered.items())[: ctx.max_assets]
+        return list(ordered.items())[: ctx.max_assets], discovery
+
+    def _degraded_discovery(self, ctx: AssetInventoryContext, reason: str) -> CheckResult:
+        return self._check_helper()._result(
+            sub_id=f"asset_discovery_incomplete@{ctx.host}",
+            severity="info", likelihood="low", status="warning",
+            title="El descubrimiento de subdominios no pudo completarse",
+            finding=(
+                f"No se pudo consultar el registro de Certificate Transparency: {reason}. "
+                f"El inventario de este escaneo puede estar incompleto."
+            ),
+            business_impact=(
+                "Un inventario parcial da una falsa sensación de superficie reducida. "
+                "Los activos no descubiertos son precisamente los que nadie vigila."
+            ),
+            recommendation=(
+                "Repetir el escaneo más tarde. Si el problema persiste, aportar el listado "
+                "de subdominios conocidos para completar el inventario manualmente."
+            ),
+            evidence=reason, references=("CIS Control 1",),
+        )
+
+    @staticmethod
+    def _check_helper() -> AssetExposureCheck:
+        return AssetExposureCheck()
 
     # -- perfilado -----------------------------------------------------------
 
