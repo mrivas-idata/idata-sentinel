@@ -43,6 +43,31 @@ class HttpHeadersCheck(BaseCheck):
         out: list[CheckResult] = []
         evidence = "; ".join(f"{k}: {v}" for k, v in h.items())[:2000]
 
+        # Una página de error suele no pasar por el middleware que añade las
+        # cabeceras de seguridad: evaluarla produciría hallazgos que no
+        # describen el sitio real. Se reportan igual, pero con la advertencia
+        # por delante para que nadie lea el score sin este contexto.
+        if resp.status_code >= 400:
+            out.append(self._result(
+                sub_id=self._suffixed("response_is_an_error_page", path),
+                severity="info", likelihood="low", status="info",
+                title=f"El objetivo respondió HTTP {resp.status_code} en {path}",
+                finding=(
+                    f"La respuesta analizada es un error HTTP {resp.status_code}, no la página "
+                    f"esperada. Los hallazgos de cabeceras de esta ruta describen esa respuesta "
+                    f"de error y podrían no reflejar la configuración real del sitio."
+                ),
+                business_impact=(
+                    "El diagnóstico de esta ruta pierde representatividad. Suele indicar un WAF "
+                    "que filtra el tráfico automatizado o una restricción del servidor."
+                ),
+                recommendation=(
+                    "Permitir el User-Agent de IDATA Sentinel durante la ventana de escaneo y "
+                    "repetir el diagnóstico para obtener resultados representativos."
+                ),
+                evidence=evidence, references=(),
+            ))
+
         if resp.url.scheme == "https":
             hsts = h.get("strict-transport-security")
             if not hsts:

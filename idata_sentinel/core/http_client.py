@@ -12,6 +12,18 @@ import httpx
 logger = logging.getLogger(__name__)
 
 USER_AGENT = "IDATA-Sentinel/1.0 (+https://idatachile.com)"
+
+#: Cabeceras de una petición HTTP bien formada. El `Accept` no es cosmético:
+#: hay servidores y WAF que responden 415 a una petición sin él, y entonces el
+#: escaneo analiza una página de error en vez del sitio, produciendo hallazgos
+#: falsos de cabeceras ausentes. Esto NO es evasión —el User-Agent sigue siendo
+#: honesto e identificable (§1.2)—, es comportarse como cualquier cliente HTTP
+#: correcto.
+DEFAULT_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "es-CL,es;q=0.9,en;q=0.8",
+}
 DEFAULT_TIMEOUT = httpx.Timeout(connect=10.0, read=10.0, write=10.0, pool=10.0)
 MAX_BODY_BYTES = 5 * 1024 * 1024  # evita agotar memoria con respuestas gigantes
 MAX_REDIRECTS = 10
@@ -59,7 +71,7 @@ class HttpClient:
     def __post_init__(self) -> None:
         self._client = httpx.AsyncClient(
             timeout=DEFAULT_TIMEOUT,
-            headers={"User-Agent": USER_AGENT},
+            headers=dict(DEFAULT_HEADERS),
             follow_redirects=False,
             max_redirects=MAX_REDIRECTS,
         )
