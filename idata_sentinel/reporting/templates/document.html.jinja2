@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>{{ title }} — {{ branding.company_name }}</title>
+<style>
+  /* Documento largo con identidad IDATA. Fondo claro por legibilidad e
+     impresión; la portada conserva el fondo oscuro de marca. */
+
+  :root {
+    --accent:     {{ branding.palette.primary }};
+    --ink:        #10151f;
+    --ink-2:      #414a5c;
+    --ink-muted:  #6b7689;
+    --rule:       #dfe3ea;
+    --rule-soft:  #eceef3;
+    --surface:    #f6f8fb;
+    --dark:       {{ branding.palette.background }};
+    --dark-ink:   {{ branding.palette.text }};
+    --critical:   #b3261e;
+    --warning:    #8a5a00;
+  }
+
+  @page {
+    size: A4;
+    margin: 2.2cm 2cm 2cm;
+    @top-left {
+      content: "{{ title }}";
+      font-size: 7.5pt; color: #6b7689;
+      margin-bottom: 6mm;
+    }
+    @top-right {
+      content: "{{ branding.company_name }}";
+      font-size: 7.5pt; color: #6b7689;
+      margin-bottom: 6mm;
+    }
+    @bottom-left {
+      content: "{{ confidentiality }}";
+      font-size: 7pt; color: #8b93a3;
+      margin-top: 5mm;
+    }
+    @bottom-right {
+      content: counter(page) " / " counter(pages);
+      font-size: 7.5pt; color: #6b7689;
+      margin-top: 5mm;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+  @page :first { margin: 0; @top-left { content: ""; } @top-right { content: ""; }
+                 @bottom-left { content: ""; } @bottom-right { content: ""; } }
+
+  body {
+    font-family: {{ branding.font_family }};
+    color: var(--ink);
+    background: #ffffff;
+    font-size: 10pt;
+    line-height: 1.62;
+    margin: 0;
+    hyphens: auto;
+  }
+
+  /* -- portada ----------------------------------------------------------- */
+
+  .cover {
+    background: var(--dark);
+    color: var(--dark-ink);
+    height: 29.7cm;
+    padding: 4cm 2.4cm 2.4cm;
+    box-sizing: border-box;
+    position: relative;
+    page-break-after: always;
+  }
+  .cover-rule { width: 64px; height: 4px; background: var(--accent); margin-bottom: 28px; }
+  .cover-kicker {
+    color: var(--accent); font-size: 9pt;
+    letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 14px;
+  }
+  .cover h1 {
+    font-size: 32pt; line-height: 1.1; letter-spacing: -0.025em;
+    margin: 0; font-weight: bold; max-width: 15cm;
+  }
+  .cover-subtitle {
+    color: {{ branding.palette.text_muted }};
+    font-size: 13pt; margin-top: 16px; max-width: 13cm;
+  }
+  .cover-meta { position: absolute; bottom: 2.4cm; left: 2.4cm; right: 2.4cm; }
+  .cover-meta table { width: auto; border: none; }
+  .cover-meta td { border: none; padding: 3px 0; font-size: 10pt; }
+  .cover-meta td:first-child {
+    color: {{ branding.palette.text_muted }}; padding-right: 26px;
+  }
+  .cover-note {
+    border-top: 1px solid rgba(255,255,255,0.14);
+    margin-top: 22px; padding-top: 14px;
+    color: {{ branding.palette.text_muted }}; font-size: 8.5pt;
+  }
+
+  /* -- cuerpo ------------------------------------------------------------ */
+
+  .doc { padding-top: 0.2cm; }
+
+  h1, h2, h3, h4 { color: var(--ink); font-weight: bold; }
+  h1 {
+    font-size: 20pt; letter-spacing: -0.02em; margin: 0 0 14px;
+    padding-bottom: 8px; border-bottom: 2px solid var(--accent);
+    page-break-before: always; page-break-after: avoid;
+  }
+  h2 {
+    font-size: 14pt; letter-spacing: -0.01em; margin: 22px 0 8px;
+    page-break-after: avoid;
+  }
+  h3 { font-size: 11pt; margin: 16px 0 6px; page-break-after: avoid; }
+  h4 { font-size: 10pt; margin: 12px 0 4px; color: var(--ink-2); page-break-after: avoid; }
+
+  p { margin: 7px 0; }
+  strong { font-weight: bold; }
+
+  a { color: var(--accent); text-decoration: none; }
+  /* En papel un enlace interno sin página es inútil: se le añade la página
+     destino. WeasyPrint resuelve target-counter en el momento de paginar. */
+  a[href^="#"]::after {
+    content: " · p. " target-counter(attr(href), page);
+    color: var(--ink-muted); font-size: 0.82em; font-weight: normal;
+  }
+
+  ul, ol { margin: 7px 0; padding-left: 20px; }
+  li { margin-bottom: 4px; }
+  li > ul, li > ol { margin: 4px 0; }
+
+  hr { border: none; border-top: 1px solid var(--rule); margin: 22px 0; }
+
+  blockquote {
+    margin: 12px 0; padding: 10px 14px;
+    background: var(--surface);
+    border-left: 3px solid var(--accent);
+    color: var(--ink-2); font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+  blockquote p { margin: 4px 0; }
+  blockquote strong { color: var(--ink); }
+
+  table {
+    width: 100%; border-collapse: collapse; margin: 10px 0;
+    font-size: 9pt; page-break-inside: avoid;
+  }
+  th, td {
+    text-align: left; padding: 6px 9px;
+    border-bottom: 1px solid var(--rule-soft); vertical-align: top;
+  }
+  thead th {
+    color: var(--ink-muted); font-size: 7.5pt; font-weight: bold;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    border-bottom: 1.5px solid var(--rule);
+  }
+  tbody tr:nth-child(even) { background: #fafbfd; }
+
+  code {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 8.5pt; background: var(--surface);
+    padding: 1px 5px; border-radius: 3px; color: var(--ink);
+  }
+  pre {
+    background: var(--surface); border: 1px solid var(--rule-soft);
+    border-radius: 6px; padding: 10px 12px; overflow-wrap: break-word;
+    white-space: pre-wrap; page-break-inside: avoid; margin: 10px 0;
+  }
+  pre code { background: none; padding: 0; font-size: 8.5pt; line-height: 1.8; }
+
+  /* Los [[dobles corchetes]] marcan lo que IDATA debe completar. Solo se
+     resaltan en la copia interna: en la del cliente se avisa por CLI. */
+  .placeholder { background: #fff4d6; padding: 0 3px; border-radius: 2px; }
+
+  {% if internal_included %}
+  .internal-warning {
+    background: #fff4d6; border: 1px solid #e0b64d; border-radius: 6px;
+    padding: 12px 14px; margin-bottom: 18px; font-size: 9pt; color: var(--warning);
+  }
+  {% endif %}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="cover-rule"></div>
+  {% if branding.logo_path %}
+    <img src="{{ branding.logo_path }}" style="max-height:60px; margin-bottom:22px;"><br>
+  {% endif %}
+  <div class="cover-kicker">{{ branding.company_name }} · {{ document_type }}</div>
+  <h1>{{ title }}</h1>
+  {% if subtitle %}<p class="cover-subtitle">{{ subtitle }}</p>{% endif %}
+
+  <div class="cover-meta">
+    <table>
+      {% if version %}<tr><td>Versión</td><td>{{ version }}</td></tr>{% endif %}
+      <tr><td>Fecha</td><td>{{ date }}</td></tr>
+      <tr><td>Emitido por</td><td>{{ branding.company_name }}</td></tr>
+      <tr><td>Contacto</td><td>{{ branding.company_url }}</td></tr>
+    </table>
+    <div class="cover-note">{{ confidentiality }}</div>
+  </div>
+</div>
+
+<div class="doc">
+  {% if internal_included %}
+    <div class="internal-warning">
+      <strong>Copia interna.</strong> Este PDF conserva las notas internas de IDATA.
+      No lo entregue al cliente: genere la versión limpia sin <code>--con-notas-internas</code>.
+    </div>
+  {% endif %}
+  {#- `body` es HTML ya convertido desde el Markdown que redacta IDATA. Se marca
+      seguro porque la fuente es un documento propio, no entrada de usuario:
+      no renderizar aquí Markdown de terceros. -#}
+  {{ body | safe }}
+</div>
+
+</body>
+</html>

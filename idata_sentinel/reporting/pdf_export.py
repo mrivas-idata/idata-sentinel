@@ -26,7 +26,21 @@ def render_html(context: dict) -> str:
 
 
 def export_pdf(context: dict, output_path: Path) -> None:
+    _write_pdf(render_html(context), output_path)
+
+
+def render_document_html(context: dict) -> str:
+    """Documentos largos en Markdown (guía del cliente, propuestas): mismo motor,
+    plantilla distinta. Ver `reporting/document.py`."""
+    template = _env.get_template("document.html.jinja2")
+    return template.render(**context)
+
+
+def export_document_pdf(context: dict, output_path: Path) -> None:
+    _write_pdf(render_document_html(context), output_path)
+
+
+def _write_pdf(html_str: str, output_path: Path) -> None:
     from weasyprint import HTML  # noqa: PLC0415 — import diferido, ver docstring del módulo
 
-    html_str = render_html(context)
     HTML(string=html_str).write_pdf(str(output_path))

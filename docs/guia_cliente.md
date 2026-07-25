@@ -4,17 +4,26 @@
 
 ---
 
-> **Cómo usar esta guía (nota interna para IDATA — eliminar antes de entregar)**
+<!-- interno:inicio -->
+> **Cómo usar esta guía (nota interna para IDATA)**
 >
-> Todo lo que aparece entre «comillas angulares» debe completarse antes de
+> Este bloque **no aparece en el PDF** que se entrega al cliente: el renderizador
+> lo elimina automáticamente. Para conservarlo, use `--con-notas-internas`.
+>
+> Todo lo que aparece entre [[dobles corchetes]] debe completarse antes de
 > entregar el documento: nombres, plazos, montos y datos de contacto. No se
 > incluyen plazos ni precios por defecto para no comprometer condiciones
 > comerciales que no estén en el contrato.
 >
 > El Anexo A es el formulario de autorización y es **bloqueante**: sin él firmado
 > no puede ejecutarse ningún escaneo en modo auditoría.
+>
+> Generar el PDF:
+> `idata-sentinel doc docs/guia_cliente.md --pdf guia-cliente.pdf`
 
 ---
+<!-- interno:fin -->
+
 
 ## Índice
 
@@ -97,10 +106,10 @@ base sobre la que se sostiene la legalidad del encargo.
 
 | Entregable | Formato | Cuándo |
 |---|---|---|
-| Reporte ejecutivo de diagnóstico | PDF con identidad IDATA | «completar plazo» |
+| Reporte ejecutivo de diagnóstico | PDF con identidad IDATA | [[completar plazo]] |
 | Anexo técnico detallado | Incluido en el PDF (sección 7) | Junto al reporte |
 | Resultados estructurados | JSON, para integrar con sus herramientas | A solicitud |
-| Presentación de resultados | Reunión de «duración» | «completar plazo» |
+| Presentación de resultados | Reunión de [[duración]] | [[completar plazo]] |
 | Alertas de monitoreo | Correo o webhook | Solo si contrató monitoreo |
 | Reporte de tendencia | PDF periódico | Solo si contrató monitoreo |
 
@@ -128,7 +137,7 @@ El reporte tiene nueve secciones, en este orden:
 
 **Quién participa:** por su parte, un responsable con autoridad para autorizar el
 análisis (típicamente Gerente de TI, CISO o Gerente General) y, si existe, quien
-opere la infraestructura. Por parte de IDATA, «completar».
+opere la infraestructura. Por parte de IDATA, [[completar]].
 
 **Qué se define:**
 
@@ -454,8 +463,8 @@ entregamos un **informe comparativo** que muestra:
 Es el entregable que le permite mostrar avance con evidencia objetiva, en lugar
 de una afirmación.
 
-**Condiciones del re-escaneo:** «completar — si está incluido en el contrato, en
-qué plazo, y cuántos re-escaneos».
+**Condiciones del re-escaneo:** [[completar — si está incluido en el contrato, en
+qué plazo, y cuántos re-escaneos]].
 
 ---
 
@@ -554,15 +563,15 @@ consecuencia.
 | Aspecto | Cómo lo manejamos |
 |---|---|
 | **Cifrado en reposo** | Los hallazgos y el inventario se almacenan cifrados |
-| **Retención** | «completar plazo». Al cumplirse, se eliminan salvo instrucción contraria suya |
+| **Retención** | [[completar plazo]]. Al cumplirse, se eliminan salvo instrucción contraria suya |
 | **Acceso** | Restringido al equipo asignado a su encargo |
 | **Registro de autorizaciones** | Log de solo-escritura, disponible para usted |
 | **Distribución del reporte** | Solo a los destinatarios que usted designe en el Anexo E |
 | **Eliminación anticipada** | Puede solicitarla por escrito en cualquier momento |
 
 En lo que respecta a los datos personales que pudieran quedar comprendidos, el
-tratamiento se rige por «referencia a la cláusula del contrato o al acuerdo de
-confidencialidad».
+tratamiento se rige por [[referencia a la cláusula del contrato o al acuerdo de
+confidencialidad]].
 
 ---
 
@@ -866,7 +875,7 @@ aparecerá en sus registros.
 
 ### Si necesita detener el escaneo
 
-Contacte a «nombre y teléfono del contacto técnico de IDATA». El escaneo se
+Contacte a [[nombre y teléfono del contacto técnico de IDATA]]. El escaneo se
 detiene de inmediato, sin dejar estado en su infraestructura.
 
 ---
@@ -887,11 +896,11 @@ detiene de inmediato, sin dejar estado en su infraestructura.
 
 | Rol | Nombre | Contacto |
 |---|---|---|
-| Responsable del encargo | «completar» | «completar» |
-| Analista asignado | «completar» | «completar» |
-| Contacto para detener el escaneo | «completar» | «completar» |
+| Responsable del encargo | [[completar]] | [[completar]] |
+| Analista asignado | [[completar]] | [[completar]] |
+| Contacto para detener el escaneo | [[completar]] | [[completar]] |
 
 ---
 
 *IDATA Chile — https://idatachile.com*
-*Guía del servicio de Diagnóstico de Seguridad · versión «completar» · «fecha»*
+*Guía del servicio de Diagnóstico de Seguridad · versión [[completar]] · [[fecha]]*

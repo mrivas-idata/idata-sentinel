@@ -77,6 +77,28 @@ idata-sentinel serve
 
 `--json salida.json` exporta el contrato estable para integrar con CRM o dashboards.
 
+### Documentos para el cliente
+
+Cualquier Markdown se convierte en un PDF con identidad IDATA, reutilizando el
+mismo motor que el reporte:
+
+```bash
+idata-sentinel doc docs/guia_cliente.md --pdf guia-cliente.pdf \
+    --tipo "Guía del servicio" --version "1.0"
+```
+
+- Los bloques entre `<!-- interno:inicio -->` y `<!-- interno:fin -->` **se
+  eliminan** de la versión entregable. `--con-notas-internas` genera la copia
+  interna, que además lleva un aviso visible de no entregarla.
+- Los `[[dobles corchetes]]` marcan datos por completar. El comando los lista
+  antes de generar el archivo, para que nadie entregue un documento con huecos.
+- Fondo claro y una sección por página: es un documento para leer, anotar e
+  imprimir, no una pieza de presentación como el reporte.
+
+[docs/guia_cliente.md](docs/guia_cliente.md) es la guía que se entrega al cliente
+al contratar el servicio: 10 pasos, formulario de autorización, checklist de
+preparación, glosario y el detalle de las peticiones que verá su SOC.
+
 ### Cifrado en reposo
 
 Los hallazgos describen las debilidades del cliente: si la base se filtra, el

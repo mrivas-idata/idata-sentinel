@@ -332,6 +332,74 @@ def monitor_run(
 # ---------------------------------------------------------------------------
 
 
+@app.command("doc")
+def doc(
+    source: Path = typer.Argument(..., help="Archivo Markdown a renderizar"),
+    pdf_output: Path = typer.Option(None, "--pdf", help="Ruta del PDF de salida"),
+    html_output: Path = typer.Option(None, "--html", help="Ruta del HTML de salida"),
+    title: str = typer.Option("", "--title", help="Título; por defecto, el primer H1"),
+    subtitle: str = typer.Option("", "--subtitle"),
+    doc_type: str = typer.Option("Documento", "--tipo", help="Bajada de portada"),
+    version: str = typer.Option("", "--version"),
+    with_internal: bool = typer.Option(
+        False, "--con-notas-internas", help="Conserva los bloques internos de IDATA"
+    ),
+) -> None:
+    """Convierte un Markdown en un documento PDF con identidad IDATA."""
+    from idata_sentinel.reporting.document import DocumentMeta, build_document_context
+    from idata_sentinel.reporting.pdf_export import export_document_pdf, render_document_html
+
+    if not source.exists():
+        console.print(f"[red]No existe el archivo: {source}[/red]")
+        raise typer.Exit(code=1)
+    if not pdf_output and not html_output:
+        console.print("[red]Indica al menos --pdf o --html.[/red]")
+        raise typer.Exit(code=1)
+
+    context = build_document_context(
+        source,
+        meta=DocumentMeta(
+            title=title, subtitle=subtitle, document_type=doc_type, version=version
+        ),
+        include_internal=with_internal,
+    )
+
+    if context["internal_blocks_removed"]:
+        console.print(
+            f"[dim]{context['internal_blocks_removed']} bloque(s) de notas internas "
+            f"eliminado(s) de la versión entregable.[/dim]"
+        )
+    if with_internal:
+        console.print("[yellow]Copia interna: conserva las notas de IDATA. No la entregues.[/yellow]")
+
+    pending = context["placeholders"]
+    if pending:
+        console.print(
+            f"\n[yellow]Faltan {len(pending)} dato(s) por completar antes de entregar:[/yellow]"
+        )
+        for item in pending:
+            # markup=False: los marcadores usan corchetes, que Rich interpretaría
+            # como etiquetas de estilo y descartaría.
+            console.print(f"  · {item}", markup=False, style="yellow")
+        console.print()
+
+    if html_output:
+        html_output.write_text(render_document_html(context), encoding="utf-8")
+        console.print(f"[green]HTML exportado a {html_output}[/green]")
+
+    if pdf_output:
+        try:
+            export_document_pdf(context, pdf_output)
+            console.print(f"[green]PDF exportado a {pdf_output}[/green]")
+        except Exception as e:
+            console.print(f"[red]No se pudo generar el PDF ({type(e).__name__}: {e}).[/red]")
+            console.print(
+                "[yellow]WeasyPrint requiere las librerías nativas de Pango/Cairo/GObject. "
+                "Están en la imagen Docker del proyecto; en Windows no suelen estarlo.[/yellow]"
+            )
+            raise typer.Exit(code=1) from e
+
+
 @app.command("keygen")
 def keygen() -> None:
     """Genera una clave para cifrar en reposo los datos de escaneo (plan §1.4)."""
