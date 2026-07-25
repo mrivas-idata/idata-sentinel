@@ -1,0 +1,134 @@
+{% extends "base.html.jinja2" %}
+{% block title %}Panel general — IDATA Sentinel{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="page-title">Panel general</h1>
+    <p class="page-sub">Postura de seguridad de todos los objetivos bajo diagnóstico.</p>
+  </div>
+  <a class="btn" href="/nuevo">Nuevo escaneo</a>
+</div>
+
+{% if not overview %}
+  <div class="card empty">
+    <div class="empty-title">Todavía no hay escaneos registrados</div>
+    <p>Ejecuta el primer diagnóstico para establecer la línea base de un objetivo.</p>
+    <p style="margin-top:20px;"><a class="btn" href="/nuevo">Escanear un sitio</a></p>
+  </div>
+{% else %}
+
+  <div class="grid grid-kpi" style="margin-bottom: 24px;">
+    <div class="stat">
+      <div class="stat-label">Objetivos monitoreados</div>
+      <div class="stat-value">{{ kpis.targets }}</div>
+      <div class="stat-foot">{{ kpis.scans }} escaneo(s) registrado(s)</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Score promedio</div>
+      <div class="stat-value" style="color: {{ kpis.avg_color }}">{{ kpis.avg_score }}</div>
+      <div class="stat-foot">sobre 100 puntos</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Hallazgos críticos y altos</div>
+      <div class="stat-value" style="color: {{ '#d03b3b' if kpis.severe else '#0ca30c' }}">{{ kpis.severe }}</div>
+      <div class="stat-foot">abiertos en el último escaneo</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Activos descubiertos</div>
+      <div class="stat-value">{{ kpis.assets }}</div>
+      <div class="stat-foot">{{ kpis.reachable }} accesible(s) por web</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Objetivos</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Objetivo</th>
+            <th>Score</th>
+            <th>Nota</th>
+            <th>Tendencia</th>
+            <th>Hallazgos por severidad</th>
+            <th>Último escaneo</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in overview %}
+          <tr>
+            <td><a href="/objetivo?target={{ row.target | urlencode }}">{{ row.target }}</a></td>
+            <td class="num" style="font-weight:650;">{{ row.score }}</td>
+            <td><span class="badge" style="background: {{ row.grade_color }}">{{ row.grade }}</span></td>
+            <td>
+              {% if row.spark.has_data %}
+                <svg width="{{ row.spark.width }}" height="{{ row.spark.height }}" viewBox="0 0 {{ row.spark.width }} {{ row.spark.height }}" role="img"
+                     aria-label="Tendencia del score: de {{ row.spark.min_value }} a {{ row.spark.max_value }} puntos">
+                  <polyline points="{{ row.spark.area }}" fill="{{ row.grade_color }}" fill-opacity="0.10" stroke="none"/>
+                  <polyline points="{{ row.spark.points }}" fill="none" stroke="{{ row.grade_color }}"
+                            stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+                  <circle cx="{{ row.spark.last_x }}" cy="{{ row.spark.last_y }}" r="4"
+                          fill="{{ row.grade_color }}" stroke="#131b2e" stroke-width="2"/>
+                </svg>
+              {% else %}
+                <span class="stat-foot">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if row.segments %}
+                <div class="sev-bar" style="max-width: 260px;">
+                  {% for s in row.segments %}
+                    <div class="sev-seg" style="background: {{ s.color }}; flex: {{ s.count }}"
+                         title="{{ s.label }}: {{ s.count }}">{{ s.count }}</div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <span class="badge" style="background: #0ca30c">Sin hallazgos</span>
+              {% endif %}
+            </td>
+            <td class="stat-foot">{{ row.scanned_at }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sev-legend">
+      {% for key, label, color in severity_legend %}
+        <span class="sev-key"><span class="swatch" style="background: {{ color }}"></span>{{ label }}</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if monitors %}
+  <div class="card">
+    <h2 class="card-title">Monitoreo programado</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Objetivo</th><th>Cadencia</th><th>Modo</th><th>Módulos</th><th>Último re-escaneo</th><th>Estado</th></tr>
+        </thead>
+        <tbody>
+        {% for m in monitors %}
+          <tr>
+            <td>{{ m.target }}</td>
+            <td>{{ m.schedule }}</td>
+            <td>{{ m.mode }}</td>
+            <td class="mono">{{ m.modules }}</td>
+            <td class="stat-foot">{{ m.last_run_at or "nunca" }}</td>
+            <td>
+              <span class="badge" style="background: {{ '#0ca30c' if m.active else '#898781' }}">
+                {{ "Activo" if m.active else "Inactivo" }}
+              </span>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+{% endif %}
+{% endblock %}

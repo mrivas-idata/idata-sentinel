@@ -1,0 +1,33 @@
+{% extends "base.html.jinja2" %}
+{% block title %}Escaneando {{ job.target }} — IDATA Sentinel{% endblock %}
+{% block head %}<meta http-equiv="refresh" content="3">{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="page-title">Diagnóstico en curso</h1>
+    <p class="page-sub">{{ job.target }} · modo {{ job.mode }}</p>
+  </div>
+</div>
+
+<div class="card">
+  {% if job.status == "error" %}
+    <div class="notice notice-warn"><span>⚠</span>
+      <div><strong>El escaneo falló.</strong> {{ job.error }}</div>
+    </div>
+    <p style="margin-top:20px;"><a class="btn btn-ghost" href="/nuevo">Volver a intentar</a></p>
+  {% else %}
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div class="spinner" role="status" aria-label="Escaneo en progreso"></div>
+      <div>
+        <div style="font-weight:600;">{{ job.stage }}</div>
+        <div class="stat-foot">
+          El rate limit de {{ job.rate_limit }} s por host mantiene el escaneo dentro de la política
+          de higiene de red, así que un diagnóstico completo tarda varios minutos.
+        </div>
+      </div>
+    </div>
+    <p class="stat-foot" style="margin-top:18px;">Esta página se actualiza sola cada 3 segundos.</p>
+  {% endif %}
+</div>
+{% endblock %}

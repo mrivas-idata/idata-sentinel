@@ -1,0 +1,47 @@
+{% extends "base.html.jinja2" %}
+{% block title %}Ayuda por módulo — IDATA Sentinel{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="page-title">Ayuda por módulo</h1>
+    <p class="page-sub">Qué revisa cada módulo, qué hallazgos produce y bajo qué límites legales opera.</p>
+  </div>
+</div>
+
+{% for m in modules %}
+<div class="card" id="{{ m.alias }}">
+  <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom: 6px;">
+    <h2 style="margin:0; font-size:19px; font-weight:650;">{{ m.label }}</h2>
+    <span class="chip">{{ m.phase }}</span>
+    <span class="chip mono">--modules {{ m.alias }}</span>
+  </div>
+  <p style="color: var(--ink-2); margin: 0 0 16px;">{{ m.purpose }}</p>
+
+  <div class="grid grid-2">
+    <div class="help-section">
+      <h3 class="card-title">Qué revisa</h3>
+      <ul class="help-list">
+        {% for item in m.what_it_does %}<li>{{ item }}</li>{% endfor %}
+      </ul>
+    </div>
+    <div class="help-section">
+      <h3 class="card-title">Hallazgos característicos</h3>
+      <ul class="help-list">
+        {% for item in m.key_findings %}<li>{{ item }}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="notice notice-warn" style="margin-top: 18px;">
+    <span>§</span><div><strong>Límites legales.</strong> {{ m.legal }}</div>
+  </div>
+
+  <h3 class="card-title" style="margin-top: 20px;">Uso desde la CLI</h3>
+  {% for example in m.examples %}
+    <div class="mono" style="background: var(--surface-2); padding: 9px 12px; border-radius: 8px; margin-bottom: 6px;">{{ example }}</div>
+  {% endfor %}
+  <p class="stat-foot" style="margin-top: 12px;">En el reporte: {{ m.report_section }}</p>
+</div>
+{% endfor %}
+{% endblock %}

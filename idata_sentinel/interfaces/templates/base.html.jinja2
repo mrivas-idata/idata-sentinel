@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}IDATA Sentinel{% endblock %}</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🛡️</text></svg>">
+{% block head %}{% endblock %}
+</head>
+<body>
+<div class="shell">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 2.5 4.5 5.6v6.1c0 4.6 3.2 8.9 7.5 10 4.3-1.1 7.5-5.4 7.5-10V5.6L12 2.5Z"
+                stroke="#3b82f6" stroke-width="1.7" stroke-linejoin="round"/>
+          <path d="m8.6 12.1 2.4 2.4 4.4-4.6" stroke="#3b82f6" stroke-width="1.7"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        IDATA Sentinel
+      </div>
+      <div class="brand-sub">Diagnóstico de seguridad</div>
+    </div>
+
+    <nav class="nav-group">
+      <div class="nav-label">Operación</div>
+      <a class="nav-item {% if active == 'dashboard' %}active{% endif %}" href="/">Panel general</a>
+      <a class="nav-item {% if active == 'new' %}active{% endif %}" href="/nuevo">Nuevo escaneo</a>
+    </nav>
+
+    {% if targets %}
+    <nav class="nav-group">
+      <div class="nav-label">Objetivos</div>
+      {% for t in targets %}
+        <a class="nav-item {% if active_target == t.target %}active{% endif %}" href="/objetivo?target={{ t.target | urlencode }}">
+          <span class="dot" style="background: {{ t.color }}"></span>
+          {{ t.short }}
+        </a>
+      {% endfor %}
+    </nav>
+    {% endif %}
+
+    <nav class="nav-group">
+      <div class="nav-label">Referencia</div>
+      <a class="nav-item {% if active == 'help' %}active{% endif %}" href="/ayuda">Ayuda por módulo</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    {% if not auth_enabled %}
+    <div class="notice notice-warn" style="margin-bottom: 24px;">
+      <span>⚠</span>
+      <div>
+        <strong>Sin control de acceso.</strong> Define la variable de entorno
+        <code class="mono">IDATA_SENTINEL_TOKEN</code> antes de exponer esta app fuera de
+        <code class="mono">localhost</code>: un escáner abierto a Internet puede usarse para
+        analizar activos de terceros sin autorización.
+      </div>
+    </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+
+    <div class="notice notice-legal" style="margin-top: 40px;">
+      <span>§</span>
+      <div>
+        Los resultados se basan en {% block legal_basis %}información pública observada de forma pasiva{% endblock %}.
+        No constituyen una garantía absoluta de seguridad: son una foto del momento del escaneo.
+        El modo auditoría exige autorización escrita del titular del activo (Ley 21.459).
+      </div>
+    </div>
+  </main>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,110 @@
+{% extends "base.html.jinja2" %}
+{% block title %}Nuevo escaneo — IDATA Sentinel{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="page-title">Nuevo escaneo</h1>
+    <p class="page-sub">El modo pasivo solo lee información que el servidor ya publica. El modo auditoría exige autorización registrada.</p>
+  </div>
+</div>
+
+{% if error %}
+  <div class="notice notice-warn" style="margin-bottom: 20px;"><span>⚠</span><div>{{ error }}</div></div>
+{% endif %}
+
+<div class="grid grid-2">
+  <form class="card" method="post" action="/escanear">
+    <h2 class="card-title">Objetivo</h2>
+
+    <div class="field">
+      <label for="target">URL a diagnosticar</label>
+      <input type="text" id="target" name="target" placeholder="https://ejemplo.cl"
+             value="{{ form.target or '' }}" required>
+      <div class="field-hint">Incluye el esquema. Prueba siempre primero contra activos propios.</div>
+    </div>
+
+    <div class="field">
+      <label for="mode">Modo</label>
+      <select id="mode" name="mode">
+        <option value="passive" {% if form.mode != 'audit' %}selected{% endif %}>Prospección pasiva — sin autorización</option>
+        <option value="audit" {% if form.mode == 'audit' %}selected{% endif %}>Auditoría — requiere autorización</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="modules">Módulos</label>
+      <select id="modules" name="modules">
+        <option value="all">Todos los módulos</option>
+        <option value="vuln">Solo vulnerabilidades</option>
+        <option value="assets">Solo inventario de activos</option>
+        <option value="privacy">Solo datos personales (Ley 21.719)</option>
+        <option value="vuln,privacy">Vulnerabilidades + datos personales</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="rate_limit">Segundos entre requests</label>
+      <input type="text" id="rate_limit" name="rate_limit" value="2.0">
+      <div class="field-hint">Mínimo 2 s en modo pasivo, según la política de higiene de red.</div>
+    </div>
+
+    <h2 class="card-title" style="margin-top: 28px;">Autorización (solo modo auditoría)</h2>
+
+    <div class="field">
+      <label for="authorized_by">Quién autoriza — nombre y cargo</label>
+      <input type="text" id="authorized_by" name="authorized_by" placeholder="Ana Pérez, CISO">
+    </div>
+    <div class="field">
+      <label for="contract">N° de contrato u orden de compra</label>
+      <input type="text" id="contract" name="contract" placeholder="OC-2026-118">
+    </div>
+    <div class="field">
+      <label for="allowed_domains">Dominios en alcance — uno por línea o separados por coma</label>
+      <input type="text" id="allowed_domains" name="allowed_domains" placeholder="cliente.cl, cliente.com">
+    </div>
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+        <input type="checkbox" name="i_have_authorization" value="1" style="width:auto;">
+        Declaro contar con autorización escrita del titular de estos activos
+      </label>
+      <div class="field-hint">Queda registrado en el log de auditoría con fecha y responsable.</div>
+    </div>
+
+    <div class="field">
+      <label style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+        <input type="checkbox" name="record" value="1" checked style="width:auto;">
+        Guardar el resultado y compararlo con la línea base
+      </label>
+    </div>
+
+    <div style="margin-top: 24px;">
+      <button class="btn" type="submit">Iniciar diagnóstico</button>
+    </div>
+  </form>
+
+  <div>
+    <div class="card">
+      <h2 class="card-title">Qué se ejecuta</h2>
+      {% for m in modules_help %}
+        <div class="finding" style="border-left-color: {{ m.color }};">
+          <p class="finding-title">{{ m.label }}</p>
+          <p>{{ m.tagline }}</p>
+        </div>
+      {% endfor %}
+      <p style="margin-top:18px;"><a href="/ayuda">Ver el detalle de cada módulo →</a></p>
+    </div>
+
+    <div class="card">
+      <h2 class="card-title">Límites que nunca se cruzan</h2>
+      <ul class="help-list">
+        <li>Sin fuerza bruta ni prueba de credenciales.</li>
+        <li>Sin explotación de vulnerabilidades: las CVE se reportan de forma informativa.</li>
+        <li>Sin fuzzing de rutas: solo rutas canónicas o entregadas por el cliente.</li>
+        <li>Sin denegación de servicio: rate limit por dominio y tope de requests.</li>
+        <li>User-Agent honesto e identificable en cada petición.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

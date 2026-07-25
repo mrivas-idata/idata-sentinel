@@ -1,0 +1,223 @@
+{% extends "base.html.jinja2" %}
+{% block title %}{{ target }} — IDATA Sentinel{% endblock %}
+{% block legal_basis %}{{ "un escaneo autorizado y registrado por el cliente" if mode == "audit" else "información pública observada de forma pasiva" }}{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div>
+    <h1 class="page-title">{{ target }}</h1>
+    <p class="page-sub">{{ mode_label }} · {{ scanned_at }}</p>
+  </div>
+  <div class="chip-row">
+    <a class="btn btn-ghost" href="/api/objetivo?target={{ target | urlencode }}">JSON</a>
+    <a class="btn" href="/nuevo">Nuevo escaneo</a>
+  </div>
+</div>
+
+<!-- Hero: el único número protagonista de la vista -->
+<div class="grid grid-hero" style="margin-bottom: 24px;">
+  <div class="card">
+    <h2 class="card-title">Score de riesgo</h2>
+    <div class="hero-score">
+      <span class="hero-value" style="color: {{ grade_color }}">{{ score }}</span>
+      <span class="hero-max">/ 100</span>
+      <span class="hero-grade" style="background: {{ grade_color }}; color: #0a0f1c;">{{ grade }}</span>
+    </div>
+    <div class="meter">
+      <div class="meter-fill" style="width: {{ score }}%; background: {{ grade_color }}"></div>
+    </div>
+    <div class="meter-scale"><span>0</span><span>50</span><span>100</span></div>
+    <p class="stat-foot" style="margin-top: 14px;">
+      Severidad × probabilidad de cada hallazgo. Los hallazgos informativos y los "no evaluables" no penalizan.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2 class="card-title">Distribución de hallazgos</h2>
+    {% if segments %}
+      <div class="sev-bar">
+        {% for s in segments %}
+          <div class="sev-seg" style="background: {{ s.color }}; flex: {{ s.count }}"
+               title="{{ s.label }}: {{ s.count }} ({{ s.percent }}%)">{{ s.count }}</div>
+        {% endfor %}
+      </div>
+      <div class="sev-legend">
+        {% for s in segments %}
+          <span class="sev-key"><span class="swatch" style="background: {{ s.color }}"></span>{{ s.label }} <b>{{ s.count }}</b></span>
+        {% endfor %}
+      </div>
+      <p class="stat-foot" style="margin-top: 14px;">{{ total_findings }} hallazgo(s) accionable(s) en total.</p>
+    {% else %}
+      <p style="color: var(--good); font-weight: 600;">Sin hallazgos accionables en este escaneo.</p>
+    {% endif %}
+
+    <div class="grid grid-kpi" style="margin-top: 20px;">
+      {% for m in module_summaries %}
+        <div class="stat" style="padding: 12px 14px;">
+          <div class="stat-label">{{ m.label }}</div>
+          {% if m.evaluated %}
+            <div class="stat-value" style="font-size: 22px;">{{ m.score }}</div>
+            <div class="stat-foot">{{ m.finding_count }} hallazgo(s)</div>
+          {% else %}
+            <div class="stat-foot" style="margin-top: 8px;">No evaluado</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if trend and trend.points | length > 1 %}
+<div class="card">
+  <h2 class="card-title">Tendencia del score</h2>
+  <div style="display:flex; align-items:center; gap: 28px; flex-wrap: wrap;">
+    <svg width="{{ spark.width }}" height="{{ spark.height }}" viewBox="0 0 {{ spark.width }} {{ spark.height }}" role="img"
+         aria-label="Evolución del score entre {{ spark.min_value }} y {{ spark.max_value }} puntos">
+      <polyline points="{{ spark.area }}" fill="{{ grade_color }}" fill-opacity="0.10" stroke="none"/>
+      <polyline points="{{ spark.points }}" fill="none" stroke="{{ grade_color }}"
+                stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="{{ spark.last_x }}" cy="{{ spark.last_y }}" r="4"
+              fill="{{ grade_color }}" stroke="#131b2e" stroke-width="2"/>
+    </svg>
+    <div>
+      <div class="stat-label">Variación desde el escaneo anterior</div>
+      <div class="stat-delta {{ 'up' if trend.delta > 0 else ('down' if trend.delta < 0 else '') }}">
+        {{ "+" if trend.delta > 0 else "" }}{{ trend.delta }} punto(s)
+      </div>
+      <div class="stat-foot">Mejor: {{ trend.best }} · Peor: {{ trend.worst }}</div>
+    </div>
+  </div>
+  <div class="table-scroll" style="margin-top: 16px;">
+    <table>
+      <thead><tr><th>Fecha</th><th>Score</th><th>Nota</th></tr></thead>
+      <tbody>
+      {% for p in trend.points %}
+        <tr><td class="stat-foot">{{ p.scanned_at[:16] }}</td><td class="num">{{ p.score }}</td><td>{{ p.grade }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if monitoring and monitoring.findings_diff %}
+<div class="card">
+  <h2 class="card-title">Cambios desde la línea base</h2>
+  <div class="grid grid-kpi">
+    <div class="stat"><div class="stat-label">Hallazgos nuevos</div>
+      <div class="stat-value" style="color: {{ '#d03b3b' if monitoring.findings_diff.new else '#0ca30c' }}">{{ monitoring.findings_diff.new | length }}</div></div>
+    <div class="stat"><div class="stat-label">Resueltos</div>
+      <div class="stat-value" style="color: #0ca30c">{{ monitoring.findings_diff.resolved | length }}</div></div>
+    <div class="stat"><div class="stat-label">Activos nuevos</div>
+      <div class="stat-value">{{ monitoring.assets_diff.new_assets | length if monitoring.assets_diff else 0 }}</div></div>
+    <div class="stat"><div class="stat-label">Alertas emitidas</div>
+      <div class="stat-value">{{ monitoring.alerts | length }}</div></div>
+  </div>
+  {% if monitoring.findings_diff.new %}
+    <h3 class="card-title" style="margin-top: 20px;">Nuevos respecto de la línea base</h3>
+    <ul class="help-list">
+      {% for f in monitoring.findings_diff.new %}
+        <li><span class="badge" style="background: {{ severity_color(f.severity) }}">{{ severity_label(f.severity) | upper }}</span> {{ f.title }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if surface_map %}
+<div class="card">
+  <h2 class="card-title">Mapa de superficie de ataque</h2>
+  {% set t = surface_map.totals %}
+  <div class="grid grid-kpi" style="margin-bottom: 18px;">
+    <div class="stat"><div class="stat-label">Activos inventariados</div><div class="stat-value">{{ t.discovered }}</div></div>
+    <div class="stat"><div class="stat-label">Accesibles por web</div><div class="stat-value">{{ t.reachable }}</div></div>
+    <div class="stat"><div class="stat-label">Sobre HTTPS</div>
+      <div class="stat-value" style="color: {{ '#0ca30c' if t.https == t.reachable else '#fab219' }}">{{ t.https }}</div></div>
+    <div class="stat"><div class="stat-label">IP(s) distintas</div><div class="stat-value">{{ t.distinct_ips }}</div></div>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Activo</th><th>Origen</th><th>IP(s)</th><th>Estado</th><th>Tecnología</th><th>CDN / WAF</th></tr></thead>
+      <tbody>
+      {% for a in surface_map.assets %}
+        <tr>
+          <td>
+            {{ a.host }}
+            {% if a.non_production %}<span class="badge" style="background: #fab219">{{ a.non_production | upper }}</span>{% endif %}
+            {% if a.takeover_service %}<span class="badge" style="background: #d03b3b">TAKEOVER</span>{% endif %}
+          </td>
+          <td class="stat-foot">{{ a.source }}</td>
+          <td class="mono">{{ a.ips | join(", ") or "—" }}</td>
+          <td>
+            {% if a.reachable %}
+              <span class="badge {{ 'badge-outline' if a.https else '' }}" {% if not a.https %}style="background: #ec835a"{% endif %}>
+                {{ a.scheme | upper }} {{ a.status_code }}
+              </span>
+            {% elif a.resolves %}<span class="stat-foot">resuelve, sin web</span>
+            {% else %}<span class="stat-foot">no resuelve</span>{% endif %}
+          </td>
+          <td>{{ a.technologies | join(", ") or "—" }}</td>
+          <td class="stat-foot">{{ (a.cdn + a.waf + a.cloud) | join(", ") or "—" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if compliance %}
+<div class="card">
+  <h2 class="card-title">Cumplimiento Ley 21.719</h2>
+  <div class="grid grid-kpi" style="margin-bottom: 18px;">
+    <div class="stat"><div class="stat-label">Principios con brecha</div>
+      <div class="stat-value" style="color: {{ '#d03b3b' if compliance.totals.with_gaps else '#0ca30c' }}">{{ compliance.totals.with_gaps }}</div></div>
+    <div class="stat"><div class="stat-label">Con observaciones</div>
+      <div class="stat-value" style="color: #fab219">{{ compliance.totals.with_observations }}</div></div>
+    <div class="stat"><div class="stat-label">Sin hallazgos</div>
+      <div class="stat-value" style="color: #0ca30c">{{ compliance.totals.clean }}</div></div>
+  </div>
+
+  {% for p in compliance.principles %}
+    <div class="finding" style="border-left-color: {{ compliance_color(p.status) }};">
+      <div class="finding-meta">
+        <span class="badge" style="background: {{ compliance_color(p.status) }}">{{ compliance_label(p.status) }}</span>
+        <span class="finding-title" style="margin:0;">{{ p.label }}</span>
+      </div>
+      <p>{{ p.description }}</p>
+      {% if p.findings %}
+        <ul class="help-list" style="margin-top: 8px;">
+          {% for f in p.findings %}
+            <li><span class="badge" style="background: {{ severity_color(f.severity) }}">{{ severity_label(f.severity) | upper }}</span>
+              {{ f.title }} — <span style="color: var(--ink-2)">{{ f.recommendation }}</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  {% endfor %}
+  <p class="stat-foot" style="margin-top: 18px;">{{ compliance.disclaimer }}</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <h2 class="card-title">Hallazgos priorizados</h2>
+  {% if findings %}
+    {% for f in findings %}
+      <div class="finding" style="border-left-color: {{ severity_color(f.severity) }};">
+        <div class="finding-meta">
+          <span class="badge" style="background: {{ severity_color(f.severity) }}">{{ severity_label(f.severity) | upper }}</span>
+          <span class="chip">{{ f.category }}</span>
+          <span class="chip mono">{{ f.id }}</span>
+        </div>
+        <p class="finding-title">{{ f.title }}</p>
+        <p><strong>Por qué importa:</strong> {{ f.business_impact }}</p>
+        <p><strong>Qué hacer:</strong> {{ f.recommendation }}</p>
+        {% if f.evidence %}<span class="mono">{{ f.evidence[:300] }}</span>{% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p style="color: var(--good); font-weight: 600;">Sin hallazgos accionables. Revisa el JSON para el detalle informativo.</p>
+  {% endif %}
+</div>
+{% endblock %}

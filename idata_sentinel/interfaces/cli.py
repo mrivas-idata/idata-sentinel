@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json as json_module
+import os
 from pathlib import Path
 
 import typer
@@ -329,6 +330,31 @@ def monitor_run(
 # ---------------------------------------------------------------------------
 # help
 # ---------------------------------------------------------------------------
+
+
+@app.command("serve")
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="Interfaz de escucha"),
+    port: int = typer.Option(8000, "--port"),
+    db: Path = typer.Option(DEFAULT_DB_PATH, "--db"),
+    token: str = typer.Option("", "--token", help="Token de acceso; vacío = app abierta"),
+) -> None:
+    """Levanta la app web (plan maestro §9.2)."""
+    import uvicorn
+
+    from idata_sentinel.interfaces.webapp import create_app
+
+    effective_token = token or os.environ.get("IDATA_SENTINEL_TOKEN", "")
+    if host not in ("127.0.0.1", "localhost") and not effective_token:
+        console.print(
+            "[red]Negado: exponer la app fuera de localhost sin token la convierte en un "
+            "escáner abierto que cualquiera puede usar contra activos de terceros.[/red]\n"
+            "Define --token o la variable IDATA_SENTINEL_TOKEN."
+        )
+        raise typer.Exit(code=1)
+
+    console.print(f"[green]IDATA Sentinel[/green] en http://{host}:{port}")
+    uvicorn.run(create_app(store=ScanStore(db), token=effective_token), host=host, port=port)
 
 
 @app.command("help")

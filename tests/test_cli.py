@@ -228,6 +228,15 @@ def test_monitor_run_without_due_monitors(db_path):
     assert "Ningún monitor vencido" in result.stdout
 
 
+def test_serve_refuses_to_expose_an_open_scanner(db_path, monkeypatch):
+    """Un escáner abierto a Internet es una herramienta de abuso contra terceros."""
+    monkeypatch.delenv("IDATA_SENTINEL_TOKEN", raising=False)
+    result = runner.invoke(app, ["serve", "--host", "0.0.0.0", "--db", str(db_path)])
+
+    assert result.exit_code == 1
+    assert "Negado" in result.stdout
+
+
 @respx.mock
 def test_monitor_run_executes_a_due_monitor(db_path):
     _mock_target()
