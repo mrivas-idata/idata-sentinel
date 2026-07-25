@@ -43,6 +43,11 @@ class VulnIdentificationModule:
         return [r.to_dict() for r in results]
 
     async def _fetch_robots(self, params: RunParams):
+        """El engine ya lo obtiene y lo comparte entre módulos; solo se pide aquí
+        si el módulo se ejecuta de forma aislada (tests, uso programático)."""
+        if params.robots is not None and params.robots_outcome is not None:
+            return params.robots, params.robots_outcome
+
         await params.rate_limiter.wait(params.host)
         outcome = await params.http.get(f"{params.target.rstrip('/')}/robots.txt")
         policy = (

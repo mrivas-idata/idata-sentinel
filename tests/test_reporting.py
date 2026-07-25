@@ -129,6 +129,38 @@ def test_attack_surface_section_renders_the_asset_table():
     assert "requiere el Módulo 2" not in html
 
 
+def test_compliance_section_renders_the_21719_checklist():
+    from idata_sentinel.modules.data_privacy.compliance import build_compliance_checklist
+
+    checklist = build_compliance_checklist([{
+        "id": "privacy_policy_missing", "module": "data_privacy", "category": "Datos Personales",
+        "severity": "high", "likelihood": "high", "status": "fail",
+        "title": "Sin política de privacidad enlazada en el sitio", "finding": "f",
+        "business_impact": "b", "recommendation": "Publicar la política", "evidence": "e",
+        "references": [],
+    }])
+    scan = {
+        **_SAMPLE_SCAN_RESULT,
+        "modules": {**_SAMPLE_SCAN_RESULT["modules"], "data_privacy": []},
+        "artifacts": {"data_privacy": {"compliance_21719": checklist}},
+    }
+    ctx = build_report_context(scan, {**_SAMPLE_RISK, "module_scores": {
+        "vuln_identification": 55, "data_privacy": 80}})
+    html = render_html(ctx)
+
+    assert "Información al titular" in html
+    assert "BRECHA" in html
+    assert "Sin política de privacidad enlazada" in html
+    assert "no constituye una calificación legal" in html.lower()
+    assert "requiere el Módulo 3" not in html
+
+
+def test_compliance_is_absent_when_module_did_not_run():
+    ctx = build_report_context(_SAMPLE_SCAN_RESULT, _SAMPLE_RISK)
+    assert ctx["compliance"] is None
+    assert "requiere el Módulo 3" in render_html(ctx)
+
+
 def test_severity_counts_are_aggregated():
     ctx = build_report_context(_SAMPLE_SCAN_RESULT, _SAMPLE_RISK)
     assert ctx["severity_counts"]["critical"] == 1

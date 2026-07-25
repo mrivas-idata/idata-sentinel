@@ -1,0 +1,117 @@
+# Servicios de terceros que reciben datos del visitante (plan maestro §5).
+#
+# Relevante para la Ley 21.719: cargar estos scripts *antes* de obtener el
+# consentimiento implica tratar datos personales sin base de licitud, y la
+# mayoría transfiere los datos fuera de Chile.
+#
+# kind: analytics | advertising | social | tag_manager | session_replay | chat
+# abroad: true si el responsable procesa los datos fuera de Chile
+# Curado a mano; ampliar según lo observado en escaneos reales.
+
+- name: Google Analytics
+  kind: analytics
+  abroad: true
+  controller: Google LLC (EE.UU.)
+  patterns: ["google-analytics.com", "gtag/js", "googletagmanager.com/gtag"]
+
+- name: Google Tag Manager
+  kind: tag_manager
+  abroad: true
+  controller: Google LLC (EE.UU.)
+  patterns: ["googletagmanager.com/gtm.js", "googletagmanager.com/ns.html"]
+
+- name: Google Ads / DoubleClick
+  kind: advertising
+  abroad: true
+  controller: Google LLC (EE.UU.)
+  patterns: ["googleadservices.com", "doubleclick.net", "googlesyndication.com"]
+
+- name: Meta Pixel
+  kind: advertising
+  abroad: true
+  controller: Meta Platforms (EE.UU.)
+  patterns: ["connect.facebook.net", "fbevents.js", "facebook.com/tr"]
+
+- name: TikTok Pixel
+  kind: advertising
+  abroad: true
+  controller: TikTok / ByteDance
+  patterns: ["analytics.tiktok.com"]
+
+- name: LinkedIn Insight
+  kind: advertising
+  abroad: true
+  controller: LinkedIn (EE.UU.)
+  patterns: ["snap.licdn.com", "ads.linkedin.com"]
+
+- name: Hotjar
+  kind: session_replay
+  abroad: true
+  controller: Hotjar Ltd. (Malta)
+  patterns: ["static.hotjar.com", "script.hotjar.com"]
+
+- name: Microsoft Clarity
+  kind: session_replay
+  abroad: true
+  controller: Microsoft (EE.UU.)
+  patterns: ["clarity.ms"]
+
+- name: FullStory
+  kind: session_replay
+  abroad: true
+  controller: FullStory Inc. (EE.UU.)
+  patterns: ["fullstory.com/s/fs.js", "edge.fullstory.com"]
+
+- name: Smartlook
+  kind: session_replay
+  abroad: true
+  controller: Smartlook (Chequia)
+  patterns: ["smartlook.com/recorder.js"]
+
+- name: Mouseflow
+  kind: session_replay
+  abroad: true
+  controller: Mouseflow (Dinamarca)
+  patterns: ["mouseflow.com"]
+
+- name: Hubspot
+  kind: analytics
+  abroad: true
+  controller: HubSpot Inc. (EE.UU.)
+  patterns: ["js.hs-scripts.com", "js.hsforms.net"]
+
+- name: Intercom
+  kind: chat
+  abroad: true
+  controller: Intercom Inc. (EE.UU.)
+  patterns: ["widget.intercom.io", "js.intercomcdn.com"]
+
+- name: Zendesk Chat
+  kind: chat
+  abroad: true
+  controller: Zendesk Inc. (EE.UU.)
+  patterns: ["static.zdassets.com", "zopim.com"]
+
+- name: Crisp
+  kind: chat
+  abroad: true
+  controller: Crisp IM (Francia)
+  patterns: ["client.crisp.chat"]
+
+- name: Twitter / X Pixel
+  kind: advertising
+  abroad: true
+  controller: X Corp. (EE.UU.)
+  patterns: ["static.ads-twitter.com", "platform.twitter.com"]
+
+- name: Segment
+  kind: analytics
+  abroad: true
+  controller: Twilio Segment (EE.UU.)
+  patterns: ["cdn.segment.com"]
+
+- name: Matomo
+  kind: analytics
+  abroad: false
+  controller: Autoalojado (habitualmente)
+  patterns: ["matomo.js", "piwik.js"]

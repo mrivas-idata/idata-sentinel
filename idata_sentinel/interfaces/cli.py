@@ -12,6 +12,7 @@ from rich.table import Table
 from idata_sentinel.core.authorization import AuthorizationRequest
 from idata_sentinel.core.engine import Engine, ScanRequest
 from idata_sentinel.modules.asset_inventory.module import AssetInventoryModule
+from idata_sentinel.modules.data_privacy.module import DataPrivacyModule
 from idata_sentinel.modules.vuln_identification.module import VulnIdentificationModule
 from idata_sentinel.reporting.pdf_export import export_pdf
 from idata_sentinel.reporting.report_builder import build_report_context
@@ -24,6 +25,7 @@ console = Console()
 MODULE_ALIASES = {
     "vuln": "vuln_identification",
     "assets": "asset_inventory",
+    "privacy": "data_privacy",
 }
 
 _SEVERITY_STYLE = {
@@ -40,6 +42,7 @@ def _build_engine() -> Engine:
     engine = Engine()
     engine.register_module(VulnIdentificationModule())
     engine.register_module(AssetInventoryModule())
+    engine.register_module(DataPrivacyModule())
     return engine
 
 

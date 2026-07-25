@@ -69,11 +69,12 @@ def build_report_context(scan_result: dict, risk: dict, *, report_number: str | 
         "all_findings": actionable,
         "total_findings": len(actionable),
         "severity_counts": severity_counts,
-        "surface_map": _surface_map(scan_result),
+        "surface_map": _artifact(scan_result, "asset_inventory", "surface_map"),
+        "compliance": _artifact(scan_result, "data_privacy", "compliance_21719"),
     }
 
 
-def _surface_map(scan_result: dict) -> dict | None:
-    """Artefacto del Módulo 2 (plan maestro §4). `None` si ese módulo no corrió,
-    para que la sección 5 del reporte se degrade con elegancia."""
-    return scan_result.get("artifacts", {}).get("asset_inventory", {}).get("surface_map")
+def _artifact(scan_result: dict, module: str, key: str) -> dict | None:
+    """Artefacto opcional de un módulo. `None` si ese módulo no corrió, para que
+    la sección correspondiente del reporte se degrade con elegancia."""
+    return scan_result.get("artifacts", {}).get(module, {}).get(key)

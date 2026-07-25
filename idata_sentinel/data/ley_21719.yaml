@@ -1,0 +1,64 @@
+# Checklist de cumplimiento — marco IDATA sobre la Ley 21.719 (plan maestro §5).
+#
+# Mapea hallazgos TÉCNICOS a los principios de la ley. Es un semáforo de señales
+# observables, NO una calificación legal: la evaluación formal la realiza IDATA
+# en su servicio de Datos Personales (§5).
+#
+# `findings` lista los `id` de hallazgo (sin el sufijo '@ruta') que impactan el
+# principio. Provienen de los tres módulos, no solo del Módulo 3: la seguridad
+# del tratamiento se evidencia en el TLS y las cabeceras del Módulo 1.
+
+- principle: licitud
+  label: "Licitud del tratamiento"
+  description: >-
+    Todo tratamiento requiere una base de licitud. Cargar rastreadores antes del
+    consentimiento trata datos sin fundamento desde la primera visita.
+  findings:
+    - trackers_without_consent
+    - third_party_cookies_on_landing
+
+- principle: informacion
+  label: "Información al titular"
+  description: >-
+    El titular debe conocer quién trata sus datos, con qué finalidad y cómo
+    ejercer sus derechos, antes de entregarlos.
+  findings:
+    - privacy_policy_missing
+    - privacy_policy_unreachable
+    - pii_form_without_privacy_notice
+
+- principle: finalidad
+  label: "Finalidad y transferencias"
+  description: >-
+    Los datos solo pueden usarse para el fin declarado; las transferencias
+    internacionales exigen una garantía adecuada declarada.
+  findings:
+    - international_data_transfer
+
+- principle: proporcionalidad
+  label: "Proporcionalidad y minimización"
+  description: >-
+    Solo deben recogerse los datos necesarios. Los datos sensibles exigen
+    consentimiento explícito y justificación reforzada.
+  findings:
+    - sensitive_data_collected
+    - session_replay_active
+
+- principle: seguridad
+  label: "Seguridad del tratamiento"
+  description: >-
+    Deben adoptarse medidas técnicas adecuadas para proteger los datos. Se
+    evidencia en el transporte cifrado, la configuración TLS y las cookies.
+  findings:
+    - pii_form_insecure_transport
+    - form_insecure_transport
+    - asset_without_https
+    - cert_expired
+    - cert_chain_untrusted
+    - cert_hostname_mismatch
+    - tls_legacy_protocol
+    - tls_weak_cipher
+    - no_https_redirect
+    - hsts_missing
+    - cookie_insecure
+    - cookie_no_httponly

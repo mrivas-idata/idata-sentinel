@@ -195,13 +195,44 @@
 <!-- 6. Cumplimiento Ley 21.719 (Módulo 3) -->
 <section class="section">
   <h2>Cumplimiento Ley 21.719</h2>
-  {% set privacy = module_summaries | selectattr("name", "equalto", "data_privacy") | first %}
-  {% if privacy.evaluated %}
-    <p>Checklist de cumplimiento: ver anexo técnico.</p>
+  {% if compliance %}
+    {% set t = compliance.totals %}
+    <div class="card">
+      <span class="metric">{{ t.with_gaps }}</span><span class="metric-label">principio(s) con brecha</span>
+      <span class="metric">{{ t.with_observations }}</span><span class="metric-label">con observaciones</span>
+      <span class="metric">{{ t.clean }}</span><span class="metric-label">sin hallazgos</span>
+    </div>
+
+    {% for p in compliance.principles %}
+      <div class="card">
+        <h3 style="margin:0 0 4px 0;">
+          {% if p.status == "brecha" %}<span class="badge badge-critical">BRECHA</span>
+          {% elif p.status == "observacion" %}<span class="badge badge-medium">OBSERVACIÓN</span>
+          {% else %}<span class="badge badge-primary">SIN HALLAZGOS</span>{% endif %}
+          {{ p.label }}
+        </h3>
+        <p class="muted" style="margin:4px 0;">{{ p.description }}</p>
+        {% if p.findings %}
+          <table>
+            <thead><tr><th>Severidad</th><th>Hallazgo</th><th>Acción</th></tr></thead>
+            <tbody>
+            {% for f in p.findings %}
+              <tr>
+                <td><span class="badge badge-{{ f.severity }}">{{ f.severity | upper }}</span></td>
+                <td>{{ f.title }}</td>
+                <td>{{ f.recommendation }}</td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      </div>
+    {% endfor %}
+    <p class="muted">{{ compliance.disclaimer }}</p>
   {% else %}
-    <p class="muted">No disponible en este escaneo — requiere el Módulo 3 (Datos Personales), aún no ejecutado.</p>
+    <p class="muted">No disponible en este escaneo — requiere el Módulo 3 (Datos Personales), no ejecutado.</p>
+    <p class="muted">Este módulo evalúa señales técnicas observables; no reemplaza una asesoría legal formal.</p>
   {% endif %}
-  <p class="muted">Este módulo evalúa señales técnicas observables; no reemplaza una asesoría legal formal.</p>
 </section>
 
 <!-- 7. Anexo técnico -->
