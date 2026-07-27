@@ -10,6 +10,7 @@ interno: eso hace los tests deterministas y permite reconstruir históricos.
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -17,7 +18,12 @@ from pathlib import Path
 
 from idata_sentinel.storage.crypto import ENV_KEY, Cipher, DecryptionError, cipher_from_env
 
-DEFAULT_DB_PATH = Path("idata_sentinel.db")
+#: En un contenedor redeployable el sistema de archivos es efímero: si la base
+#: queda dentro de la imagen, cada despliegue borra la línea base de todos los
+#: clientes y el monitoreo pierde su referencia. `IDATA_SENTINEL_DB` debe
+#: apuntar a un volumen persistente (p. ej. /data/sentinel.db en Railway).
+ENV_DB_PATH = "IDATA_SENTINEL_DB"
+DEFAULT_DB_PATH = Path(os.environ.get(ENV_DB_PATH) or "idata_sentinel.db")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS scans (

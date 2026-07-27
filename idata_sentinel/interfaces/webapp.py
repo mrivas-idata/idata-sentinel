@@ -15,10 +15,10 @@ import asyncio
 import logging
 import os
 import secrets
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -31,6 +31,7 @@ from idata_sentinel.docs import all_modules
 from idata_sentinel.modules.asset_inventory.module import AssetInventoryModule
 from idata_sentinel.modules.data_privacy.module import DataPrivacyModule
 from idata_sentinel.modules.monitoring.module import MonitoringModule
+from idata_sentinel.modules.monitoring.scheduler import MonitorScheduler
 from idata_sentinel.modules.vuln_identification.module import VulnIdentificationModule
 from idata_sentinel.reporting.branding import load_branding
 from idata_sentinel.reporting.charts import (
@@ -58,6 +59,10 @@ _MODULE_ALIASES = {
     "privacy": "data_privacy",
 }
 
+#: Mínimo del modo pasivo (§1.2). Los re-escaneos programados lo respetan igual
+#: que un escaneo manual.
+MIN_RATE_LIMIT = 2.0
+
 _COMPLIANCE_COLORS = {"brecha": "#d03b3b", "observacion": "#fab219", "sin_hallazgos": "#0ca30c"}
 _COMPLIANCE_LABELS = {"brecha": "Brecha", "observacion": "Observación", "sin_hallazgos": "Sin hallazgos"}
 
@@ -79,6 +84,34 @@ class ScanJob:
     )
 
 
+def _lifespan_with_scheduler(poll_seconds: float):
+    """Arranca el monitoreo junto a la app y lo detiene con ella."""
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        async def _rescan(monitor) -> None:
+            job = ScanJob(
+                id=secrets.token_urlsafe(8), target=monitor.target, mode=monitor.mode,
+                modules=monitor.modules, rate_limit=MIN_RATE_LIMIT,
+            )
+            app.state.jobs[job.id] = job
+            await _run_job(app, job, authorization=None, record=True)
+
+        scheduler = MonitorScheduler(
+            store=app.state.store, run_scan=_rescan, poll_seconds=poll_seconds
+        )
+        task = asyncio.create_task(scheduler.serve_forever())
+        logger.info("monitoreo en proceso iniciado (cada %ss)", poll_seconds)
+        try:
+            yield
+        finally:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
+    return lifespan
+
+
 def _resolve_modules(raw: str) -> list[str] | None:
     raw = (raw or "").strip().lower()
     if not raw or raw == "all":
@@ -91,10 +124,25 @@ def _short_host(target: str) -> str:
 
 
 def create_app(
-    *, store: ScanStore | None = None, token: str | None = None
+    *,
+    store: ScanStore | None = None,
+    token: str | None = None,
+    with_scheduler: bool = False,
+    scheduler_poll_seconds: float = 3600.0,
 ) -> FastAPI:
-    """Factory: recibir el almacén por parámetro mantiene los tests aislados."""
-    app = FastAPI(title="IDATA Sentinel", docs_url=None, redoc_url=None)
+    """Factory: recibir el almacén por parámetro mantiene los tests aislados.
+
+    `with_scheduler` levanta el monitoreo dentro de este mismo proceso. Es lo que
+    permite desplegar en un solo servicio: un volumen persistente se monta en un
+    único servicio, así que web y worker separados no podrían compartir la base
+    SQLite. Con Postgres gestionado se vuelve a separar en dos servicios.
+    """
+    app = FastAPI(
+        title="IDATA Sentinel",
+        docs_url=None,
+        redoc_url=None,
+        lifespan=_lifespan_with_scheduler(scheduler_poll_seconds) if with_scheduler else None,
+    )
     app.mount("/static", StaticFiles(directory=_BASE_DIR / "static"), name="static")
     templates = Jinja2Templates(directory=str(_BASE_DIR / "templates"))
 

@@ -420,6 +420,10 @@ def serve(
     port: int = typer.Option(8000, "--port"),
     db: Path = typer.Option(DEFAULT_DB_PATH, "--db"),
     token: str = typer.Option("", "--token", help="Token de acceso; vacío = app abierta"),
+    with_scheduler: bool = typer.Option(
+        False, "--con-monitoreo",
+        help="Ejecuta el monitoreo dentro de este proceso (despliegue de un solo servicio)",
+    ),
 ) -> None:
     """Levanta la app web (plan maestro §9.2)."""
     import uvicorn
@@ -436,7 +440,15 @@ def serve(
         raise typer.Exit(code=1)
 
     console.print(f"[green]IDATA Sentinel[/green] en http://{host}:{port}")
-    uvicorn.run(create_app(store=ScanStore(db), token=effective_token), host=host, port=port)
+    console.print(f"[dim]base de datos: {db.resolve()}[/dim]")
+    if with_scheduler:
+        console.print("[dim]monitoreo continuo activo en este mismo proceso[/dim]")
+
+    uvicorn.run(
+        create_app(store=ScanStore(db), token=effective_token, with_scheduler=with_scheduler),
+        host=host,
+        port=port,
+    )
 
 
 @app.command("help")

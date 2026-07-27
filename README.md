@@ -171,19 +171,50 @@ generan el PDF real, y construye la imagen Docker.
 
 ## Despliegue
 
-Railway (contenedores persistentes) + Supabase (Postgres, Auth, Storage). No es
-serverless por tres razones: el rate limit deliberado alarga los escaneos, el
-monitoreo necesita un proceso permanente, y WeasyPrint requiere librerías nativas.
+Railway, con contenedores persistentes. No es serverless por tres razones: el rate
+limit deliberado alarga los escaneos, el monitoreo necesita un proceso permanente,
+y WeasyPrint requiere librerías nativas del sistema.
 
-Un solo `Dockerfile` sirve a los dos servicios; cambia el start command:
+### Etapa 1 — Un servicio con SQLite en volumen
 
-| Servicio | Comando |
-|---|---|
-| `web` | `idata-sentinel serve --host 0.0.0.0 --port $PORT` |
-| `worker` | `idata-sentinel monitor run --forever` |
+Es el despliegue vigente. **Un volumen persistente se monta en un único servicio**,
+así que el monitoreo corre dentro del propio proceso web (`--con-monitoreo`) en vez
+de en un worker aparte.
 
-Variables de entorno: `IDATA_SENTINEL_TOKEN` (obligatoria en público) y la cadena de
-conexión de Supabase cuando se migre desde SQLite.
+1. Crear el proyecto en Railway apuntando a este repositorio. `railway.json` ya
+   define el build, el start command y el healthcheck.
+2. Añadir un **volumen** montado en `/data`.
+3. Configurar las variables de entorno:
+
+| Variable | Obligatoria | Para qué |
+|---|---|---|
+| `IDATA_SENTINEL_TOKEN` | Sí | Sin ella la app se niega a escuchar fuera de `localhost` |
+| `IDATA_SENTINEL_ENCRYPTION_KEY` | Sí | Cifra los hallazgos en reposo. Generar con `idata-sentinel keygen` |
+| `IDATA_SENTINEL_DB` | No | Ya viene en `/data/sentinel.db` desde el Dockerfile |
+| `PORT` | No | La inyecta Railway |
+
+**Una réplica, no más.** SQLite en un volumen no admite varios escritores
+simultáneos; escalar horizontalmente corrompería la base.
+
+**Guarda la clave de cifrado fuera de Railway.** Si se pierde, los escaneos ya
+cifrados son irrecuperables.
+
+### Etapa 2 — Supabase, cuando haga falta
+
+Postgres gestionado, Auth y Storage entran cuando se necesite acceso de los
+clientes o varios servicios en paralelo. El esquema es plano a propósito (JSON en
+columnas de texto) para migrar sin reescribir consultas.
+
+### Verificar la imagen localmente
+
+```bash
+docker build -t idata-sentinel .
+docker volume create sentinel-data
+docker run -d --name sentinel -p 8000:8000 \
+    -e IDATA_SENTINEL_TOKEN=cambiar \
+    -v sentinel-data:/data idata-sentinel
+curl localhost:8000/api/salud
+```
 
 ## Documentos de referencia
 
