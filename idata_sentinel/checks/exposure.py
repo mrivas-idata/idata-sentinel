@@ -18,7 +18,17 @@ _VERBOSE_ERROR_SIGNATURES = (
 )
 _FORM_RE = re.compile(r'<form\b[^>]*\baction\s*=\s*["\']?([^"\'>\s]*)', re.IGNORECASE)
 _GENERATOR_RE = re.compile(r'<meta[^>]+name=["\']generator["\'][^>]+content=["\']([^"\']+)', re.IGNORECASE)
-_SENSITIVE_FILE_PATHS = ("/.env", "/.git/HEAD")
+
+#: Rutas sensibles a comprobar y la firma que confirma que la respuesta ES el
+#: archivo, no una página de la app. Un SPA responde 200 con su index.html a
+#: cualquier ruta desconocida, así que sin verificar el contenido `/.env`
+#: "accesible" es un falso positivo constante (visto en un escaneo real).
+_SENSITIVE_FILES = (
+    # (ruta, firma que valida el contenido)
+    ("/.env", re.compile(r"^\s*(?:[A-Z][A-Z0-9_]*\s*=|#)", re.MULTILINE)),
+    ("/.git/HEAD", re.compile(r"^\s*(?:ref:\s|[0-9a-f]{40})")),
+)
+_HTML_SIGNATURE = re.compile(r"<(?:!doctype\s+html|html\b|head\b|body\b)", re.IGNORECASE)
 
 
 class ExposureCheck(BaseCheck):
@@ -42,19 +52,39 @@ class ExposureCheck(BaseCheck):
             out.extend(self._check_metadata(body, resp.headers, path))
             out.extend(self._check_insecure_forms(body, resp, path))
 
-        for sensitive_path in _SENSITIVE_FILE_PATHS:
-            outcome = await ctx.get_outcome(sensitive_path)
-            if outcome.ok and outcome.response.status_code == 200 and outcome.response.text.strip():
-                out.append(self._result(
-                    sub_id=f"metadata_exposed{sensitive_path.replace('/', '_')}",
-                    severity="low", likelihood="low", status="warning",
-                    title=f"Archivo sensible accesible: {sensitive_path}",
-                    finding=f"{sensitive_path} responde 200 con contenido.",
-                    business_impact="Posible fuga de configuración/metadatos internos.",
-                    recommendation=f"Restringir el acceso público a {sensitive_path}.",
-                    evidence=outcome.response.text[:200], references=("CWE-538",),
-                ))
+        for sensitive_path, signature in _SENSITIVE_FILES:
+            out.extend(self._check_sensitive_file(await ctx.get_outcome(sensitive_path),
+                                                  sensitive_path, signature))
         return out
+
+    def _check_sensitive_file(self, outcome, path: str, signature) -> list[CheckResult]:
+        if not outcome.ok or outcome.response.status_code != 200:
+            return []
+        body = outcome.response.text.strip()
+        if not body:
+            return []
+
+        # Un catch-all que sirve el index.html a cualquier ruta desconocida NO es
+        # una fuga: es lo normal en un SPA. Solo se reporta si el contenido tiene
+        # la firma real del archivo esperado.
+        if _HTML_SIGNATURE.search(body[:500]) or not signature.search(body):
+            return []
+
+        # 'medium', no 'low': un .env o un repositorio git accesibles son de las
+        # fugas más explotables que existen.
+        return [self._result(
+            sub_id=f"sensitive_file_exposed{path.replace('/', '_')}",
+            severity="medium", likelihood="medium", status="fail",
+            title=f"Archivo sensible accesible: {path}",
+            finding=f"{path} responde 200 y su contenido coincide con el del archivo real.",
+            business_impact=(
+                "Un archivo de configuración o de control de versiones expuesto suele "
+                "contener credenciales, claves de API o la estructura interna del proyecto: "
+                "es material de ataque directo."
+            ),
+            recommendation=f"Bloquear el acceso público a {path} en el servidor web.",
+            evidence=body[:200], references=("CWE-538",),
+        )]
 
     def _check_verbose_errors(self, body: str, path: str) -> list[CheckResult]:
         body_lower = body.lower()
