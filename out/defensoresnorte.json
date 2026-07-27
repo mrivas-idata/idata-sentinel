@@ -1,0 +1,604 @@
+{
+  "target": "https://www.defensoresnorte.cl/",
+  "mode": "passive",
+  "modules": {
+    "vuln_identification": [
+      {
+        "id": "hsts_missing",
+        "module": "vuln_identification",
+        "category": "HTTP Headers",
+        "severity": "medium",
+        "likelihood": "high",
+        "status": "fail",
+        "title": "Falta cabecera HSTS",
+        "finding": "El servidor no envía Strict-Transport-Security en /.",
+        "business_impact": "Riesgo de degradación a HTTP y robo de sesión en redes hostiles.",
+        "recommendation": "Configurar HSTS max-age >= 31536000; includeSubDomains.",
+        "evidence": "date: Mon, 27 Jul 2026 03:05:58 GMT; server: Apache; link: <https://www.defensoresnorte.cl/wp-json/>; rel=\"https://api.w.org/\", <https://www.defensoresnorte.cl/wp-json/wp/v2/pages/23>; rel=\"alternate\"; title=\"JSON\"; type=\"application/json\", <https://www.defensoresnorte.cl/>; rel=shortlink; keep-alive: timeout=5, max=99; connection: Keep-Alive; transfer-encoding: chunked; content-type: text/html; charset=UTF-8",
+        "references": [
+          "OWASP HSTS",
+          "CWE-319"
+        ]
+      },
+      {
+        "id": "csp_missing",
+        "module": "vuln_identification",
+        "category": "HTTP Headers",
+        "severity": "medium",
+        "likelihood": "medium",
+        "status": "fail",
+        "title": "Falta Content-Security-Policy",
+        "finding": "El servidor no envía CSP en /.",
+        "business_impact": "Sin mitigación de XSS/inyección de contenido a nivel de navegador.",
+        "recommendation": "Definir una política CSP restrictiva (default-src 'self' como base).",
+        "evidence": "date: Mon, 27 Jul 2026 03:05:58 GMT; server: Apache; link: <https://www.defensoresnorte.cl/wp-json/>; rel=\"https://api.w.org/\", <https://www.defensoresnorte.cl/wp-json/wp/v2/pages/23>; rel=\"alternate\"; title=\"JSON\"; type=\"application/json\", <https://www.defensoresnorte.cl/>; rel=shortlink; keep-alive: timeout=5, max=99; connection: Keep-Alive; transfer-encoding: chunked; content-type: text/html; charset=UTF-8",
+        "references": [
+          "OWASP CSP",
+          "CWE-79"
+        ]
+      },
+      {
+        "id": "xfo_missing",
+        "module": "vuln_identification",
+        "category": "HTTP Headers",
+        "severity": "medium",
+        "likelihood": "medium",
+        "status": "fail",
+        "title": "Falta protección contra clickjacking",
+        "finding": "Ni X-Frame-Options ni CSP frame-ancestors están presentes en /.",
+        "business_impact": "El sitio puede ser embebido en un iframe malicioso (clickjacking).",
+        "recommendation": "Configurar X-Frame-Options: DENY/SAMEORIGIN o CSP frame-ancestors.",
+        "evidence": "date: Mon, 27 Jul 2026 03:05:58 GMT; server: Apache; link: <https://www.defensoresnorte.cl/wp-json/>; rel=\"https://api.w.org/\", <https://www.defensoresnorte.cl/wp-json/wp/v2/pages/23>; rel=\"alternate\"; title=\"JSON\"; type=\"application/json\", <https://www.defensoresnorte.cl/>; rel=shortlink; keep-alive: timeout=5, max=99; connection: Keep-Alive; transfer-encoding: chunked; content-type: text/html; charset=UTF-8",
+        "references": [
+          "OWASP Clickjacking",
+          "CWE-1021"
+        ]
+      },
+      {
+        "id": "xcto_missing",
+        "module": "vuln_identification",
+        "category": "HTTP Headers",
+        "severity": "low",
+        "likelihood": "medium",
+        "status": "fail",
+        "title": "Falta X-Content-Type-Options",
+        "finding": "El servidor no envía X-Content-Type-Options: nosniff en /.",
+        "business_impact": "El navegador puede interpretar (\"sniff\") contenido de forma insegura.",
+        "recommendation": "Configurar X-Content-Type-Options: nosniff.",
+        "evidence": "date: Mon, 27 Jul 2026 03:05:58 GMT; server: Apache; link: <https://www.defensoresnorte.cl/wp-json/>; rel=\"https://api.w.org/\", <https://www.defensoresnorte.cl/wp-json/wp/v2/pages/23>; rel=\"alternate\"; title=\"JSON\"; type=\"application/json\", <https://www.defensoresnorte.cl/>; rel=shortlink; keep-alive: timeout=5, max=99; connection: Keep-Alive; transfer-encoding: chunked; content-type: text/html; charset=UTF-8",
+        "references": [
+          "CWE-116"
+        ]
+      },
+      {
+        "id": "referrer_policy_missing",
+        "module": "vuln_identification",
+        "category": "HTTP Headers",
+        "severity": "low",
+        "likelihood": "low",
+        "status": "fail",
+        "title": "Falta Referrer-Policy",
+        "finding": "El servidor no envía Referrer-Policy en /.",
+        "business_impact": "Posible fuga de URLs/parámetros sensibles vía el header Referer.",
+        "recommendation": "Configurar Referrer-Policy (p.ej. strict-origin-when-cross-origin).",
+        "evidence": "date: Mon, 27 Jul 2026 03:05:58 GMT; server: Apache; link: <https://www.defensoresnorte.cl/wp-json/>; rel=\"https://api.w.org/\", <https://www.defensoresnorte.cl/wp-json/wp/v2/pages/23>; rel=\"alternate\"; title=\"JSON\"; type=\"application/json\", <https://www.defensoresnorte.cl/>; rel=shortlink; keep-alive: timeout=5, max=99; connection: Keep-Alive; transfer-encoding: chunked; content-type: text/html; charset=UTF-8",
+        "references": [
+          "OWASP Referrer Policy"
+        ]
+      },
+      {
+        "id": "permissions_policy_missing",
+        "module": "vuln_identification",
+        "category": "HTTP Headers",
+        "severity": "info",
+        "likelihood": "low",
+        "status": "info",
+        "title": "Falta Permissions-Policy",
+        "finding": "El servidor no envía Permissions-Policy en /.",
+        "business_impact": "Buena práctica de hardening ausente; impacto directo bajo.",
+        "recommendation": "Configurar Permissions-Policy restringiendo APIs no usadas.",
+        "evidence": "date: Mon, 27 Jul 2026 03:05:58 GMT; server: Apache; link: <https://www.defensoresnorte.cl/wp-json/>; rel=\"https://api.w.org/\", <https://www.defensoresnorte.cl/wp-json/wp/v2/pages/23>; rel=\"alternate\"; title=\"JSON\"; type=\"application/json\", <https://www.defensoresnorte.cl/>; rel=shortlink; keep-alive: timeout=5, max=99; connection: Keep-Alive; transfer-encoding: chunked; content-type: text/html; charset=UTF-8",
+        "references": []
+      },
+      {
+        "id": "coop_missing",
+        "module": "vuln_identification",
+        "category": "HTTP Headers",
+        "severity": "medium",
+        "likelihood": "medium",
+        "status": "fail",
+        "title": "Falta Cross-Origin-Opener-Policy",
+        "finding": "El servidor no envía COOP en /.",
+        "business_impact": "Una página abierta desde el sitio conserva una referencia al documento original: permite ataques de tabnabbing y fugas entre orígenes (XS-Leaks) que pueden derivar en secuestro de sesión.",
+        "recommendation": "Configurar Cross-Origin-Opener-Policy: same-origin.",
+        "evidence": "",
+        "references": [
+          "OWASP XS-Leaks",
+          "CWE-1022"
+        ]
+      },
+      {
+        "id": "corp_missing",
+        "module": "vuln_identification",
+        "category": "HTTP Headers",
+        "severity": "low",
+        "likelihood": "low",
+        "status": "warning",
+        "title": "Falta Cross-Origin-Resource-Policy",
+        "finding": "El servidor no envía CORP en /.",
+        "business_impact": "Otros sitios pueden incrustar los recursos del dominio, habilitando ataques de canal lateral que infieren su contenido.",
+        "recommendation": "Configurar Cross-Origin-Resource-Policy: same-origin (o same-site).",
+        "evidence": "",
+        "references": [
+          "OWASP XS-Leaks"
+        ]
+      },
+      {
+        "id": "tls_ok",
+        "module": "vuln_identification",
+        "category": "TLS/SSL",
+        "severity": "info",
+        "likelihood": "low",
+        "status": "pass",
+        "title": "Configuración TLS saludable",
+        "finding": "Protocolo TLSv1.3, cadena confiable, certificado vigente.",
+        "business_impact": "N/A.",
+        "recommendation": "Mantener el hardening actual.",
+        "evidence": "TLSv1.3 / TLS_AES_256_GCM_SHA384",
+        "references": []
+      },
+      {
+        "id": "tech_version_disclosure@WordPress",
+        "module": "vuln_identification",
+        "category": "Fingerprint",
+        "severity": "low",
+        "likelihood": "medium",
+        "status": "warning",
+        "title": "Versión de WordPress expuesta",
+        "finding": "Se detectó WordPress versión 7.0.2.",
+        "business_impact": "Facilita el reconocimiento dirigido de vulnerabilidades conocidas.",
+        "recommendation": "Ocultar la versión de WordPress expuesta públicamente.",
+        "evidence": "WordPress 7.0.2",
+        "references": [
+          "CWE-200"
+        ]
+      },
+      {
+        "id": "tech_detected@Apache",
+        "module": "vuln_identification",
+        "category": "Fingerprint",
+        "severity": "info",
+        "likelihood": "low",
+        "status": "info",
+        "title": "Tecnología detectada: Apache",
+        "finding": "Se detectó Apache (sin versión expuesta).",
+        "business_impact": "Inventario informativo; sin hallazgo de seguridad.",
+        "recommendation": "N/A.",
+        "evidence": "Apache",
+        "references": []
+      },
+      {
+        "id": "security_txt_missing",
+        "module": "vuln_identification",
+        "category": "Archivos de seguridad",
+        "severity": "info",
+        "likelihood": "low",
+        "status": "info",
+        "title": "security.txt ausente",
+        "finding": "No se encontró security.txt en las rutas estándar.",
+        "business_impact": "No es una vulnerabilidad; es una buena práctica ausente.",
+        "recommendation": "Publicar /.well-known/security.txt según RFC 9116.",
+        "evidence": "/.well-known/security.txt, /security.txt",
+        "references": [
+          "RFC 9116"
+        ]
+      },
+      {
+        "id": "metadata_exposed_generator@/",
+        "module": "vuln_identification",
+        "category": "Exposición de información",
+        "severity": "low",
+        "likelihood": "low",
+        "status": "warning",
+        "title": "Meta generator expone plataforma en /",
+        "finding": "generator: WordPress 7.0.2",
+        "business_impact": "Facilita reconocimiento de tecnología/versión.",
+        "recommendation": "Eliminar la meta tag generator en producción.",
+        "evidence": "<meta name=\"generator\" content=\"WordPress 7.0.2",
+        "references": [
+          "CWE-200"
+        ]
+      }
+    ],
+    "asset_inventory": [
+      {
+        "id": "asset_tech_version_disclosure@www.defensoresnorte.cl:WordPress",
+        "module": "asset_inventory",
+        "category": "Exposición de activos",
+        "severity": "low",
+        "likelihood": "medium",
+        "status": "warning",
+        "title": "WordPress 7.0.2 expuesto en www.defensoresnorte.cl",
+        "finding": "El activo revela la versión exacta de WordPress (7.0.2) en sus respuestas.",
+        "business_impact": "Permite al atacante buscar exploits públicos para esa versión concreta sin tener que probar nada contra el servidor.",
+        "recommendation": "Suprimir las cabeceras/marcas que exponen la versión del producto.",
+        "evidence": "WordPress 7.0.2 en www.defensoresnorte.cl",
+        "references": [
+          "CWE-200"
+        ]
+      },
+      {
+        "id": "spf_missing@www.defensoresnorte.cl",
+        "module": "asset_inventory",
+        "category": "DNS y Correo",
+        "severity": "medium",
+        "likelihood": "medium",
+        "status": "fail",
+        "title": "Falta registro SPF en www.defensoresnorte.cl",
+        "finding": "No se encontró un registro TXT con 'v=spf1' para www.defensoresnorte.cl.",
+        "business_impact": "Cualquiera puede enviar correo simulando ser este dominio: riesgo de fraude al cliente (phishing con la marca) y de daño reputacional.",
+        "recommendation": "Publicar un TXT 'v=spf1 ... -all' declarando los emisores autorizados.",
+        "evidence": "TXT observados: (ninguno)",
+        "references": [
+          "RFC 7208"
+        ]
+      },
+      {
+        "id": "dmarc_missing@www.defensoresnorte.cl",
+        "module": "asset_inventory",
+        "category": "DNS y Correo",
+        "severity": "medium",
+        "likelihood": "medium",
+        "status": "fail",
+        "title": "Falta registro DMARC en www.defensoresnorte.cl",
+        "finding": "No se encontró _dmarc.www.defensoresnorte.cl con 'v=DMARC1'.",
+        "business_impact": "Sin DMARC no hay política declarada ante correos falsificados ni visibilidad de quién está suplantando el dominio.",
+        "recommendation": "Publicar _dmarc.www.defensoresnorte.cl TXT con 'v=DMARC1; p=quarantine; rua=mailto:...'.",
+        "evidence": "",
+        "references": [
+          "RFC 7489"
+        ]
+      },
+      {
+        "id": "mta_sts_missing@www.defensoresnorte.cl",
+        "module": "asset_inventory",
+        "category": "DNS y Correo",
+        "severity": "low",
+        "likelihood": "medium",
+        "status": "warning",
+        "title": "Sin política MTA-STS en www.defensoresnorte.cl",
+        "finding": "No se encontró _mta-sts.www.defensoresnorte.cl con 'v=STSv1'.",
+        "business_impact": "El correo entrante puede ser degradado a texto plano por un atacante en red (downgrade de STARTTLS), exponiendo su contenido.",
+        "recommendation": "Publicar _mta-sts TXT y el archivo de política en https://mta-sts.<dominio>/.well-known/mta-sts.txt.",
+        "evidence": "",
+        "references": [
+          "RFC 8461"
+        ]
+      },
+      {
+        "id": "tls_rpt_missing@www.defensoresnorte.cl",
+        "module": "asset_inventory",
+        "category": "DNS y Correo",
+        "severity": "info",
+        "likelihood": "low",
+        "status": "info",
+        "title": "Sin TLS-RPT en www.defensoresnorte.cl",
+        "finding": "No se encontró _smtp._tls.www.defensoresnorte.cl con 'v=TLSRPTv1'.",
+        "business_impact": "No se reciben reportes de fallos de cifrado en la entrega de correo.",
+        "recommendation": "Publicar _smtp._tls TXT con 'v=TLSRPTv1; rua=mailto:...'.",
+        "evidence": "",
+        "references": [
+          "RFC 8460"
+        ]
+      },
+      {
+        "id": "caa_missing@www.defensoresnorte.cl",
+        "module": "asset_inventory",
+        "category": "DNS y Correo",
+        "severity": "low",
+        "likelihood": "low",
+        "status": "warning",
+        "title": "Sin registro CAA en www.defensoresnorte.cl",
+        "finding": "No hay registros CAA para www.defensoresnorte.cl: cualquier CA puede emitir certificados del dominio.",
+        "business_impact": "Amplía la superficie para un certificado fraudulento emitido por una CA no prevista, habilitando sitios de phishing con HTTPS válido.",
+        "recommendation": "Publicar CAA restringiendo la emisión a las CAs efectivamente usadas.",
+        "evidence": "",
+        "references": [
+          "RFC 8659"
+        ]
+      },
+      {
+        "id": "dnssec_missing@www.defensoresnorte.cl",
+        "module": "asset_inventory",
+        "category": "DNS y Correo",
+        "severity": "low",
+        "likelihood": "low",
+        "status": "warning",
+        "title": "DNSSEC no habilitado en www.defensoresnorte.cl",
+        "finding": "No se observaron registros DNSKEY para www.defensoresnorte.cl.",
+        "business_impact": "Las respuestas DNS del dominio no son verificables: un envenenamiento de caché puede desviar a los usuarios a infraestructura del atacante.",
+        "recommendation": "Habilitar DNSSEC en el proveedor de DNS y publicar el registro DS en el registrar.",
+        "evidence": "",
+        "references": [
+          "RFC 4033"
+        ]
+      },
+      {
+        "id": "asset_discovery_incomplete@www.defensoresnorte.cl",
+        "module": "asset_inventory",
+        "category": "Exposición de activos",
+        "severity": "info",
+        "likelihood": "low",
+        "status": "warning",
+        "title": "El descubrimiento de subdominios no pudo completarse",
+        "finding": "No se pudo consultar el registro de Certificate Transparency: crt.sh devolvió HTTP 502. El inventario de este escaneo puede estar incompleto.",
+        "business_impact": "Un inventario parcial da una falsa sensación de superficie reducida. Los activos no descubiertos son precisamente los que nadie vigila.",
+        "recommendation": "Repetir el escaneo más tarde. Si el problema persiste, aportar el listado de subdominios conocidos para completar el inventario manualmente.",
+        "evidence": "crt.sh devolvió HTTP 502",
+        "references": [
+          "CIS Control 1"
+        ]
+      },
+      {
+        "id": "attack_surface_summary@www.defensoresnorte.cl",
+        "module": "asset_inventory",
+        "category": "Exposición de activos",
+        "severity": "info",
+        "likelihood": "low",
+        "status": "info",
+        "title": "Superficie de ataque de www.defensoresnorte.cl: 1 activo(s) accesible(s)",
+        "finding": "Se inventariaron 1 activo(s): 1 resuelven en DNS, 1 responden por web (1 sobre HTTPS). 1 IP(s) y 2 tecnología(s) distintas.",
+        "business_impact": "Cada activo accesible es una puerta potencial. Conocer el inventario completo es el requisito previo a cualquier control: no se protege lo que no se sabe que existe.",
+        "recommendation": "Validar que todos los activos listados sean conocidos y necesarios; retirar de Internet los que no lo sean.",
+        "evidence": "No productivos expuestos: 0; sin HTTPS: 0; riesgo de takeover: 0; sin CDN/WAF: 1",
+        "references": [
+          "CIS Control 1"
+        ]
+      }
+    ],
+    "data_privacy": [
+      {
+        "id": "privacy_policy_missing",
+        "module": "data_privacy",
+        "category": "Datos Personales",
+        "severity": "high",
+        "likelihood": "high",
+        "status": "fail",
+        "title": "Sin política de privacidad enlazada en el sitio",
+        "finding": "No se encontró ningún enlace a política de privacidad o tratamiento de datos.",
+        "business_impact": "Informar al titular es una obligación básica de la Ley 21.719. Su ausencia es verificable por cualquiera desde el navegador y es la primera brecha que detectaría un fiscalizador.",
+        "recommendation": "Publicar la política de privacidad y enlazarla desde el pie de página de todo el sitio.",
+        "evidence": "",
+        "references": [
+          "Ley 21.719 — deber de información"
+        ]
+      },
+      {
+        "id": "trackers_without_consent",
+        "module": "data_privacy",
+        "category": "Datos Personales",
+        "severity": "high",
+        "likelihood": "high",
+        "status": "fail",
+        "title": "Rastreadores activos sin mecanismo de consentimiento",
+        "finding": "La página carga 1 servicio(s) de terceros (Google Analytics) y no se detectó banner ni plataforma de gestión de consentimiento.",
+        "business_impact": "Se tratan datos de los visitantes sin base de licitud desde el primer instante de la visita: es la infracción más fácil de constatar por la Agencia y la más visible para cualquier denunciante.",
+        "recommendation": "Implementar una CMP que bloquee los rastreadores hasta obtener consentimiento y registre la prueba de ese consentimiento.",
+        "evidence": "Google Analytics: https://www.googletagmanager.com/gtag/js?id=GT-57Z7FDQ",
+        "references": [
+          "Ley 21.719 — licitud del tratamiento"
+        ]
+      },
+      {
+        "id": "international_data_transfer",
+        "module": "data_privacy",
+        "category": "Datos Personales",
+        "severity": "medium",
+        "likelihood": "high",
+        "status": "warning",
+        "title": "Transferencia de datos a responsables fuera de Chile",
+        "finding": "Los datos de navegación se comparten con: Google LLC (EE.UU.). Evaluación de señales técnicas observables; no constituye una calificación legal formal de cumplimiento de la Ley 21.719.",
+        "business_impact": "Las transferencias internacionales requieren una garantía adecuada declarada. Sin ella, cada visita al sitio genera una transferencia no amparada.",
+        "recommendation": "Declarar las transferencias en la política de privacidad y adoptar cláusulas contractuales u otro mecanismo de garantía adecuada.",
+        "evidence": "Google LLC (EE.UU.)",
+        "references": [
+          "Ley 21.719 — transferencias internacionales"
+        ]
+      }
+    ]
+  },
+  "artifacts": {
+    "asset_inventory": {
+      "surface_map": {
+        "apex": "www.defensoresnorte.cl",
+        "totals": {
+          "discovered": 1,
+          "resolving": 1,
+          "reachable": 1,
+          "https": 1,
+          "distinct_ips": 1,
+          "distinct_technologies": 2
+        },
+        "assets": [
+          {
+            "host": "www.defensoresnorte.cl",
+            "source": "target",
+            "resolves": true,
+            "ips": [
+              "162.240.102.107"
+            ],
+            "cnames": [
+              "defensoresnorte.cl"
+            ],
+            "reachable": true,
+            "scheme": "https",
+            "status_code": 200,
+            "https": true,
+            "server": "Apache",
+            "title": "Abogados Penalistas en La Serena – Defensores Norte, Defensa Jurídica Penal",
+            "technologies": [
+              "WordPress 7.0.2",
+              "Apache"
+            ],
+            "cdn": [],
+            "waf": [],
+            "cloud": [],
+            "non_production": null,
+            "takeover_service": null,
+            "dns": {
+              "host": "www.defensoresnorte.cl",
+              "records": {
+                "A": [
+                  "162.240.102.107"
+                ],
+                "CNAME": [
+                  "defensoresnorte.cl."
+                ],
+                "MX": [
+                  "10 alt4.aspmx.l.google.com.",
+                  "1 aspmx.l.google.com.",
+                  "5 alt2.aspmx.l.google.com.",
+                  "10 alt3.aspmx.l.google.com.",
+                  "5 alt1.aspmx.l.google.com."
+                ],
+                "NS": [
+                  "ns2.huevohost.cl.",
+                  "ns1.huevohost.cl."
+                ]
+              },
+              "nxdomain": false
+            }
+          }
+        ],
+        "technology_index": {
+          "Apache": [
+            "www.defensoresnorte.cl"
+          ],
+          "WordPress 7.0.2": [
+            "www.defensoresnorte.cl"
+          ]
+        },
+        "provider_index": {
+          "cdn": {},
+          "waf": {},
+          "cloud": {}
+        },
+        "ip_index": {
+          "162.240.102.107": [
+            "www.defensoresnorte.cl"
+          ]
+        },
+        "exposure_summary": {
+          "non_production": [],
+          "without_https": [],
+          "takeover_risk": [],
+          "without_cdn_or_waf": [
+            "www.defensoresnorte.cl"
+          ],
+          "origin_leak": []
+        },
+        "discovery_complete": false
+      }
+    },
+    "data_privacy": {
+      "compliance_21719": {
+        "principles": [
+          {
+            "principle": "licitud",
+            "label": "Licitud del tratamiento",
+            "description": "Todo tratamiento requiere una base de licitud. Cargar rastreadores antes del consentimiento trata datos sin fundamento desde la primera visita.",
+            "status": "brecha",
+            "gap_count": 1,
+            "findings": [
+              {
+                "id": "trackers_without_consent",
+                "title": "Rastreadores activos sin mecanismo de consentimiento",
+                "severity": "high",
+                "recommendation": "Implementar una CMP que bloquee los rastreadores hasta obtener consentimiento y registre la prueba de ese consentimiento."
+              }
+            ]
+          },
+          {
+            "principle": "informacion",
+            "label": "Información al titular",
+            "description": "El titular debe conocer quién trata sus datos, con qué finalidad y cómo ejercer sus derechos, antes de entregarlos.",
+            "status": "brecha",
+            "gap_count": 1,
+            "findings": [
+              {
+                "id": "privacy_policy_missing",
+                "title": "Sin política de privacidad enlazada en el sitio",
+                "severity": "high",
+                "recommendation": "Publicar la política de privacidad y enlazarla desde el pie de página de todo el sitio."
+              }
+            ]
+          },
+          {
+            "principle": "finalidad",
+            "label": "Finalidad y transferencias",
+            "description": "Los datos solo pueden usarse para el fin declarado; las transferencias internacionales exigen una garantía adecuada declarada.",
+            "status": "observacion",
+            "gap_count": 1,
+            "findings": [
+              {
+                "id": "international_data_transfer",
+                "title": "Transferencia de datos a responsables fuera de Chile",
+                "severity": "medium",
+                "recommendation": "Declarar las transferencias en la política de privacidad y adoptar cláusulas contractuales u otro mecanismo de garantía adecuada."
+              }
+            ]
+          },
+          {
+            "principle": "proporcionalidad",
+            "label": "Proporcionalidad y minimización",
+            "description": "Solo deben recogerse los datos necesarios. Los datos sensibles exigen consentimiento explícito y justificación reforzada.",
+            "status": "sin_hallazgos",
+            "gap_count": 0,
+            "findings": []
+          },
+          {
+            "principle": "seguridad",
+            "label": "Seguridad del tratamiento",
+            "description": "Deben adoptarse medidas técnicas adecuadas para proteger los datos. Se evidencia en el transporte cifrado, la configuración TLS y las cookies.",
+            "status": "brecha",
+            "gap_count": 1,
+            "findings": [
+              {
+                "id": "hsts_missing",
+                "title": "Falta cabecera HSTS",
+                "severity": "medium",
+                "recommendation": "Configurar HSTS max-age >= 31536000; includeSubDomains."
+              }
+            ]
+          }
+        ],
+        "totals": {
+          "evaluated": 5,
+          "with_gaps": 3,
+          "with_observations": 1,
+          "clean": 1
+        },
+        "disclaimer": "Semáforo basado en señales técnicas observables al momento del escaneo. No constituye una calificación legal de cumplimiento ni sustituye la asesoría del servicio de Datos Personales de IDATA."
+      }
+    }
+  },
+  "risk": {
+    "score": 12,
+    "grade": "F",
+    "module_scores": {
+      "vuln_identification": 67,
+      "asset_inventory": 82,
+      "data_privacy": 62
+    },
+    "category_scores": {
+      "HTTP Headers": 71,
+      "TLS/SSL": 100,
+      "Fingerprint": 98,
+      "Archivos de seguridad": 100,
+      "Exposición de información": 99,
+      "Exposición de activos": 98,
+      "DNS y Correo": 84,
+      "Datos Personales": 62
+    }
+  }
+}
