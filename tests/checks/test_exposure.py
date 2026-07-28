@@ -5,6 +5,7 @@ import pytest
 import respx
 
 from idata_sentinel.checks.exposure import ExposureCheck
+from idata_sentinel.core.check_base import FINDING_CONTRACT_KEYS
 
 ROOT = "https://example.test/"
 
@@ -148,7 +149,4 @@ async def test_all_findings_conform_to_contract(make_ctx):
     results = await ExposureCheck().run(make_ctx())
     assert results
     for r in results:
-        assert set(r.to_dict()) == {
-            "id", "module", "category", "severity", "likelihood", "status",
-            "title", "finding", "business_impact", "recommendation", "evidence", "references",
-        }
+        assert set(r.to_dict()) == FINDING_CONTRACT_KEYS

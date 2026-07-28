@@ -72,7 +72,7 @@ class DnsEmailCheck(BaseCheck):
         txt = records.get("TXT")
         receives_mail = bool(records.get("MX"))
 
-        out.extend(self._spf_results(host, txt, receives_mail))
+        out.extend(self._spf_results(host, txt, receives_mail, records.measured("TXT")))
         out.extend(await self._dmarc_results(host, dns, receives_mail))
         if receives_mail:
             out.extend(await self._transport_results(host, dns))
@@ -80,9 +80,28 @@ class DnsEmailCheck(BaseCheck):
         out.extend(await self._dnssec_results(host, dns))
         return out
 
+    def _unmeasured(self, *, sub_id: str, query: str) -> CheckResult:
+        """La consulta DNS no concluyó: no se puede afirmar nada sobre el registro.
+
+        Sin esto, un timeout de TXT se emitía como `spf_missing` sobre un dominio
+        que sí publica SPF, con la recomendación de publicar uno que ya existe.
+        """
+        return self._error_result(
+            sub_id=sub_id,
+            reason=(
+                f"La consulta DNS de {query} no concluyó (timeout o fallo del servidor). "
+                "No se puede afirmar si el registro existe."
+            ),
+            evidence=f"consulta sin respuesta: {query}",
+        )
+
     # -- SPF ---------------------------------------------------------------
 
-    def _spf_results(self, host: str, txt: tuple[str, ...], receives_mail: bool) -> list[CheckResult]:
+    def _spf_results(
+        self, host: str, txt: tuple[str, ...], receives_mail: bool, measured: bool = True
+    ) -> list[CheckResult]:
+        if not measured:
+            return [self._unmeasured(sub_id=f"spf_unmeasured@{host}", query=f"TXT {host}")]
         spf = find_spf(txt)
         if spf is None:
             severity = "medium" if receives_mail else "low"
@@ -138,8 +157,10 @@ class DnsEmailCheck(BaseCheck):
     # -- DMARC -------------------------------------------------------------
 
     async def _dmarc_results(self, host: str, dns: DnsResolver, receives_mail: bool) -> list[CheckResult]:
-        txt = await dns.txt(f"_dmarc.{host}")
-        dmarc = find_dmarc(txt)
+        answer = await dns.txt(f"_dmarc.{host}")
+        if answer.failed:
+            return [self._unmeasured(sub_id=f"dmarc_unmeasured@{host}", query=f"TXT _dmarc.{host}")]
+        dmarc = find_dmarc(answer.values)
         if dmarc is None:
             severity = "medium" if receives_mail else "low"
             return [self._result(
@@ -181,7 +202,10 @@ class DnsEmailCheck(BaseCheck):
     async def _transport_results(self, host: str, dns: DnsResolver) -> list[CheckResult]:
         out: list[CheckResult] = []
         mta_sts = await dns.txt(f"_mta-sts.{host}")
-        if not any("v=stsv1" in r.lower() for r in mta_sts):
+        if mta_sts.failed:
+            out.append(self._unmeasured(
+                sub_id=f"mta_sts_unmeasured@{host}", query=f"TXT _mta-sts.{host}"))
+        elif not any("v=stsv1" in r.lower() for r in mta_sts.values):
             out.append(self._result(
                 sub_id=f"mta_sts_missing@{host}", severity="low", likelihood="medium", status="warning",
                 title=f"Sin política MTA-STS en {host}",
@@ -194,7 +218,10 @@ class DnsEmailCheck(BaseCheck):
                 evidence="", references=("RFC 8461",),
             ))
         tls_rpt = await dns.txt(f"_smtp._tls.{host}")
-        if not any("v=tlsrptv1" in r.lower() for r in tls_rpt):
+        if tls_rpt.failed:
+            out.append(self._unmeasured(
+                sub_id=f"tls_rpt_unmeasured@{host}", query=f"TXT _smtp._tls.{host}"))
+        elif not any("v=tlsrptv1" in r.lower() for r in tls_rpt.values):
             out.append(self._result(
                 sub_id=f"tls_rpt_missing@{host}", severity="info", likelihood="low", status="info",
                 title=f"Sin TLS-RPT en {host}",
@@ -208,6 +235,8 @@ class DnsEmailCheck(BaseCheck):
     # -- CAA / DNSSEC ------------------------------------------------------
 
     def _caa_results(self, host: str, records: DnsRecords) -> list[CheckResult]:
+        if not records.measured("CAA"):
+            return [self._unmeasured(sub_id=f"caa_unmeasured@{host}", query=f"CAA {host}")]
         if records.get("CAA"):
             return []
         return [self._result(
@@ -223,8 +252,10 @@ class DnsEmailCheck(BaseCheck):
         )]
 
     async def _dnssec_results(self, host: str, dns: DnsResolver) -> list[CheckResult]:
-        values, _ = await dns.query(host, "DNSKEY")
-        if values:
+        answer = await dns.query(host, "DNSKEY")
+        if answer.failed:
+            return [self._unmeasured(sub_id=f"dnssec_unmeasured@{host}", query=f"DNSKEY {host}")]
+        if answer.values:
             return []
         return [self._result(
             sub_id=f"dnssec_missing@{host}", severity="low", likelihood="low", status="warning",

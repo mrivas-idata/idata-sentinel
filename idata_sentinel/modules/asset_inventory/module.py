@@ -15,7 +15,12 @@ import logging
 from idata_sentinel.checks.asset_exposure import AssetExposureCheck, SubdomainTakeoverCheck
 from idata_sentinel.checks.cloud_waf import detect_providers, leaked_origin
 from idata_sentinel.checks.dns_email import DnsEmailCheck
-from idata_sentinel.checks.subdomains import DiscoveryResult, discover_subdomains
+from idata_sentinel.checks.subdomains import (
+    CRT_SH_ATTEMPTS,
+    CRT_SH_BACKOFF_SECONDS,
+    DiscoveryResult,
+    discover_subdomains,
+)
 from idata_sentinel.checks.takeover import evaluate_takeover
 from idata_sentinel.checks.tech_fingerprint import detect_technologies
 from idata_sentinel.core.check_base import CheckResult
@@ -36,8 +41,18 @@ _BODY_SNIPPET_BYTES = 8000
 class AssetInventoryModule:
     name = "asset_inventory"
 
-    def __init__(self, *, max_assets: int = 25) -> None:
+    def __init__(
+        self,
+        *,
+        max_assets: int = 25,
+        discovery_attempts: int = CRT_SH_ATTEMPTS,
+        discovery_backoff: float = CRT_SH_BACKOFF_SECONDS,
+    ) -> None:
         self.max_assets = max_assets
+        # Inyectables para que los tests ejerciten la ruta de fallo sin dormir:
+        # con los valores por defecto, cinco tests sumaban 31 s de espera pura.
+        self.discovery_attempts = discovery_attempts
+        self.discovery_backoff = discovery_backoff
 
     async def run(self, params: RunParams) -> ModuleOutput:
         ctx = self._build_context(params)
@@ -56,7 +71,7 @@ class AssetInventoryModule:
 
         findings.extend(await self._apex_findings(ctx, profiles))
 
-        surface = build_surface_map(list(profiles), apex=ctx.host)
+        surface = build_surface_map(list(profiles), apex=ctx.apex)
         surface["discovery_complete"] = discovery.ok
         if not discovery.ok:
             findings.append(self._degraded_discovery(ctx, discovery.reason))
@@ -94,7 +109,13 @@ class AssetInventoryModule:
         ordered: dict[str, str] = {ctx.host: "target"}
 
         try:
-            discovery = await discover_subdomains(ctx.http, ctx.host, limit=ctx.max_assets)
+            discovery = await discover_subdomains(
+                ctx.http,
+                ctx.host,
+                limit=ctx.max_assets,
+                attempts=self.discovery_attempts,
+                backoff=self.discovery_backoff,
+            )
         except Exception as e:  # el descubrimiento nunca puede tumbar el módulo
             logger.exception("descubrimiento de subdominios falló para %s", ctx.host)
             discovery = DiscoveryResult([], ok=False, reason=f"error interno: {type(e).__name__}")
@@ -197,16 +218,29 @@ class AssetInventoryModule:
     async def _apex_findings(
         self, ctx: AssetInventoryContext, profiles: tuple[AssetProfile, ...]
     ) -> list[CheckResult]:
-        apex = next((p for p in profiles if p.host == ctx.host), None)
-        if apex is None or apex.dns is None:
-            return []
+        """Evalúa SPF, DMARC, MTA-STS, CAA y DNSSEC sobre el **dominio
+        registrable**, no sobre el host del objetivo.
+
+        Escanear `https://www.cliente.cl` hacía que se consultara
+        `_dmarc.www.cliente.cl`, que por definición no existe: se reportaba
+        "falta DMARC" en un dominio que sí lo publica, y la recomendación pedía
+        publicarlo en el lugar equivocado.
+        """
+        apex_host = ctx.apex
         check = DnsEmailCheck()
+
+        profile = next((p for p in profiles if p.host == apex_host), None)
+        records = profile.dns if profile is not None else None
         try:
-            return await check.evaluate(ctx.host, apex.dns, ctx.dns)
+            if records is None:
+                # El apex puede no estar entre los perfiles si el descubrimiento
+                # falló: se resuelve aparte antes que renunciar a evaluarlo.
+                records = await ctx.dns.records_for(apex_host)
+            return await check.evaluate(apex_host, records, ctx.dns)
         except Exception as e:
-            logger.exception("DnsEmailCheck falló para %s", ctx.host)
+            logger.exception("DnsEmailCheck falló para %s", apex_host)
             return [check._error_result(
-                sub_id=f"dns_email_error@{ctx.host}",
+                sub_id=f"dns_email_error@{apex_host}",
                 reason=f"Error interno: {type(e).__name__}: {e}",
                 evidence=str(e),
             )]

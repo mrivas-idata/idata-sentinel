@@ -23,6 +23,7 @@ from idata_sentinel.modules.monitoring.diff import (
 from idata_sentinel.modules.monitoring.module import MonitoringModule
 from idata_sentinel.modules.monitoring.scheduler import MonitorScheduler
 from idata_sentinel.storage.db import ScanStore
+from idata_sentinel.core.check_base import FINDING_CONTRACT_KEYS
 
 TARGET = "https://cliente.test"
 
@@ -351,10 +352,7 @@ async def test_all_monitoring_findings_conform_to_contract(store):
     output = await MonitoringModule(store).run(_params(findings=[_f("b", severity="critical")]))
 
     for f in output.findings:
-        assert set(f) == {
-            "id", "module", "category", "severity", "likelihood", "status",
-            "title", "finding", "business_impact", "recommendation", "evidence", "references",
-        }
+        assert set(f) == FINDING_CONTRACT_KEYS
         assert f["module"] == "monitoring"
 
 

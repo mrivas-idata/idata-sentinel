@@ -13,9 +13,55 @@ Likelihood = Literal["low", "medium", "high"]
 Status = Literal["pass", "fail", "warning", "info"]
 Mode = Literal["passive", "audit"]
 
+#: Cuánto respalda la evidencia al hallazgo. Separa "lo medí" de "lo deduje" de
+#: "no pude medirlo", que hasta ahora se confundían en un mismo `status`.
+#:
+#: - ``confirmed``  un humano lo verificó, o dos señales independientes coinciden
+#: - ``high``       observación directa (la cabecera no está en una respuesta 200)
+#: - ``medium``     deducción de una sola señal (una versión expuesta implica un CVE)
+#: - ``low``        heurística (una expresión regular sobre el HTML)
+#: - ``unverified`` no se pudo medir; el hallazgo no afirma nada sobre el objetivo
+Confidence = Literal["confirmed", "high", "medium", "low", "unverified"]
+
+#: Resultado del triage humano. Al momento del escaneo nada está verificado:
+#: es el auditor quien mueve este campo, y un informe firmado no debería llevar
+#: hallazgos accionables que sigan en ``unverified``.
+VerificationStatus = Literal[
+    "unverified", "verified_true_positive", "verified_false_positive", "needs_review"
+]
+
+#: Claves exactas que produce ``CheckResult.to_dict()``. Vive aquí, junto a la
+#: dataclass, porque hasta ahora el conjunto estaba copiado en ocho tests y
+#: cualquier cambio del contrato obligaba a editarlos uno por uno.
+FINDING_CONTRACT_KEYS = frozenset(
+    {
+        "id",
+        "module",
+        "category",
+        "severity",
+        "likelihood",
+        "status",
+        "confidence",
+        "verification_status",
+        "title",
+        "finding",
+        "business_impact",
+        "recommendation",
+        "evidence",
+        "references",
+    }
+)
+
 _VALID_SEVERITY = {"info", "low", "medium", "high", "critical"}
 _VALID_LIKELIHOOD = {"low", "medium", "high"}
 _VALID_STATUS = {"pass", "fail", "warning", "info"}
+_VALID_CONFIDENCE = {"confirmed", "high", "medium", "low", "unverified"}
+_VALID_VERIFICATION = {
+    "unverified",
+    "verified_true_positive",
+    "verified_false_positive",
+    "needs_review",
+}
 
 
 @dataclass(frozen=True)
@@ -32,6 +78,8 @@ class CheckResult:
     recommendation: str
     evidence: str
     references: tuple[str, ...] = ()
+    confidence: Confidence = "high"
+    verification_status: VerificationStatus = "unverified"
 
     def __post_init__(self) -> None:
         if self.severity not in _VALID_SEVERITY:
@@ -40,6 +88,20 @@ class CheckResult:
             raise ValueError(f"likelihood inválida: {self.likelihood!r}")
         if self.status not in _VALID_STATUS:
             raise ValueError(f"status inválido: {self.status!r}")
+        if self.confidence not in _VALID_CONFIDENCE:
+            raise ValueError(f"confidence inválida: {self.confidence!r}")
+        if self.verification_status not in _VALID_VERIFICATION:
+            raise ValueError(f"verification_status inválido: {self.verification_status!r}")
+
+    @property
+    def is_measured(self) -> bool:
+        """Si el check llegó a observar el objetivo.
+
+        Un hallazgo ``unverified`` no afirma nada: no debe penalizar el score ni
+        contar como cobertura. Es la distinción que faltaba cuando un timeout de
+        DNS se reportó como "no existe registro SPF".
+        """
+        return self.confidence != "unverified"
 
     def to_dict(self) -> dict:
         return {
@@ -49,6 +111,8 @@ class CheckResult:
             "severity": self.severity,
             "likelihood": self.likelihood,
             "status": self.status,
+            "confidence": self.confidence,
+            "verification_status": self.verification_status,
             "title": self.title,
             "finding": self.finding,
             "business_impact": self.business_impact,
@@ -80,6 +144,7 @@ class BaseCheck(ABC):
         recommendation: str,
         evidence: str,
         references: tuple[str, ...] = (),
+        confidence: Confidence = "high",
     ) -> CheckResult:
         return CheckResult(
             id=sub_id,
@@ -94,9 +159,16 @@ class BaseCheck(ABC):
             recommendation=recommendation,
             evidence=evidence,
             references=references,
+            confidence=confidence,
         )
 
     def _error_result(self, *, sub_id: str, reason: str, evidence: str = "") -> CheckResult:
+        """Resultado "no evaluable": el check no llegó a observar el objetivo.
+
+        Va siempre con ``confidence="unverified"``, que es lo que impide que el
+        motor de riesgo lo trate como una observación y que la dimensión cuente
+        como cubierta.
+        """
         return self._result(
             sub_id=sub_id,
             severity="info",
@@ -107,4 +179,5 @@ class BaseCheck(ABC):
             business_impact="No se pudo evaluar este check; no representa un hallazgo de seguridad.",
             recommendation="Reintentar el escaneo; si persiste, verificar conectividad al objetivo.",
             evidence=evidence,
+            confidence="unverified",
         )

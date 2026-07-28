@@ -11,6 +11,7 @@ from idata_sentinel.core.robots import RobotsPolicy
 from idata_sentinel.modules.vuln_identification.context import ScanContext
 from idata_sentinel.modules.vuln_identification.module import VulnIdentificationModule
 from idata_sentinel.modules.vuln_identification.registry import ALL_CHECKS, checks_for_mode
+from idata_sentinel.core.check_base import FINDING_CONTRACT_KEYS
 
 
 class _CrashingCheck(BaseCheck):
@@ -61,10 +62,7 @@ async def test_full_module_run_produces_conformant_contract():
 
     assert results, "se esperaban hallazgos (headers de seguridad ausentes)"
     for r in results:
-        assert set(r.keys()) == {
-            "id", "module", "category", "severity", "likelihood", "status",
-            "title", "finding", "business_impact", "recommendation", "evidence", "references",
-        }
+        assert set(r.keys()) == FINDING_CONTRACT_KEYS
         assert r["severity"] in {"info", "low", "medium", "high", "critical"}
         assert r["likelihood"] in {"low", "medium", "high"}
         assert r["status"] in {"pass", "fail", "warning", "info"}

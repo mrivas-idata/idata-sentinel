@@ -13,13 +13,11 @@ from idata_sentinel.core.rate_limiter import RateLimiter
 from idata_sentinel.modules.asset_inventory.context import AssetProfile
 from idata_sentinel.modules.asset_inventory.module import AssetInventoryModule
 from idata_sentinel.modules.asset_inventory.surface import build_surface_map
+from idata_sentinel.core.check_base import FINDING_CONTRACT_KEYS
 
 APEX = "idata.test"
 
-_CONTRACT_KEYS = {
-    "id", "module", "category", "severity", "likelihood", "status",
-    "title", "finding", "business_impact", "recommendation", "evidence", "references",
-}
+_CONTRACT_KEYS = FINDING_CONTRACT_KEYS
 
 
 def _crtsh(*names: str) -> httpx.Response:

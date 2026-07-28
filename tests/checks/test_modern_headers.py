@@ -9,6 +9,7 @@ from idata_sentinel.checks.modern_headers import (
     has_strict_source,
     parse_csp,
 )
+from idata_sentinel.core.check_base import FINDING_CONTRACT_KEYS
 
 URL = "https://example.test/"
 
@@ -243,7 +244,4 @@ async def test_all_results_conform_to_contract(make_ctx):
     assert results
     for r in results:
         assert r.module == "vuln_identification"
-        assert set(r.to_dict()) == {
-            "id", "module", "category", "severity", "likelihood", "status",
-            "title", "finding", "business_impact", "recommendation", "evidence", "references",
-        }
+        assert set(r.to_dict()) == FINDING_CONTRACT_KEYS

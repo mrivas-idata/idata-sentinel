@@ -6,6 +6,7 @@ from idata_sentinel.checks.asset_exposure import AssetExposureCheck, SubdomainTa
 from idata_sentinel.checks.takeover import TakeoverSignal
 from idata_sentinel.checks.tech_fingerprint import Detection
 from idata_sentinel.modules.asset_inventory.context import AssetProfile, is_non_production
+from idata_sentinel.core.check_base import FINDING_CONTRACT_KEYS
 
 
 def _ids(results) -> set[str]:
@@ -115,10 +116,7 @@ def test_asset_findings_conform_to_contract():
     assert len(results) == 5
     for r in results:
         assert r.module == "asset_inventory"
-        assert set(r.to_dict()) == {
-            "id", "module", "category", "severity", "likelihood", "status",
-            "title", "finding", "business_impact", "recommendation", "evidence", "references",
-        }
+        assert set(r.to_dict()) == FINDING_CONTRACT_KEYS
 
 
 async def test_asset_checks_reject_the_run_contract():

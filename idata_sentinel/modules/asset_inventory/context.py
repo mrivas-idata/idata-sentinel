@@ -14,6 +14,7 @@ from idata_sentinel.checks.cloud_waf import CloudProfile
 from idata_sentinel.checks.takeover import TakeoverSignal
 from idata_sentinel.checks.tech_fingerprint import Detection
 from idata_sentinel.core.dns_resolver import DnsRecords, DnsResolver
+from idata_sentinel.core.domains import is_subdomain_of, registrable_domain, subdomain_labels
 from idata_sentinel.core.http_client import HttpClient
 from idata_sentinel.core.rate_limiter import RateLimiter
 
@@ -44,8 +45,7 @@ def is_non_production(host: str) -> str | None:
     etiqueta por etiqueta (no subcadena) para no marcar 'developers.x.cl' por
     contener 'dev' ni 'protest.x.cl' por contener 'test'.
     """
-    labels = host.lower().split(".")
-    for label in labels[:-2]:  # ignora el dominio registrable
+    for label in subdomain_labels(host):
         for part in re.split(r"[-_]", label):
             if part in NON_PRODUCTION_MARKERS:
                 return part
@@ -133,12 +133,18 @@ class AssetInventoryContext:
     additional_assets: tuple[str, ...] = ()
     max_assets: int = 25
 
+    @property
+    def apex(self) -> str:
+        """Dominio registrable del objetivo.
+
+        Es el eje correcto para el descubrimiento por Certificate Transparency y
+        para los registros de correo: SPF y DMARC se publican en el dominio
+        organizacional. Consultarlos sobre `www.` producía hallazgos falsos.
+        """
+        return registrable_domain(self.host)
+
     def in_scope(self, host: str) -> bool:
         """Los activos aportados por el cliente solo se tocan si caen dentro de
         los dominios autorizados (§1.1 scope enforcement)."""
-        host = host.lower().rstrip(".")
-        domains = self.allowed_domains or (self.host,)
-        return any(
-            host == d.lower().rstrip(".") or host.endswith("." + d.lower().rstrip("."))
-            for d in domains
-        )
+        domains = self.allowed_domains or (self.apex,)
+        return any(is_subdomain_of(host, d) for d in domains)

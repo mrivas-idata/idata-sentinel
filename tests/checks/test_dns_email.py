@@ -11,6 +11,7 @@ from idata_sentinel.checks.dns_email import (
     spf_qualifier,
 )
 from idata_sentinel.core.dns_resolver import DnsRecords
+from idata_sentinel.core.check_base import FINDING_CONTRACT_KEYS
 
 HOST = "idata.test"
 
@@ -162,10 +163,7 @@ async def test_all_results_conform_to_contract(fake_dns):
     assert results
     for r in results:
         assert r.module == "asset_inventory"
-        assert set(r.to_dict()) == {
-            "id", "module", "category", "severity", "likelihood", "status",
-            "title", "finding", "business_impact", "recommendation", "evidence", "references",
-        }
+        assert set(r.to_dict()) == FINDING_CONTRACT_KEYS
 
 
 async def test_evaluate_survives_empty_records(fake_dns):

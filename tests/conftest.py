@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from idata_sentinel.core.dns_resolver import DnsResolver
+from idata_sentinel.core.dns_resolver import DnsAnswer, DnsResolver
 from idata_sentinel.core.http_client import HttpClient
 from idata_sentinel.core.rate_limiter import RateLimiter
 from idata_sentinel.core.robots import RobotsPolicy
@@ -17,19 +17,25 @@ class FakeDnsResolver(DnsResolver):
         self,
         zone: dict[tuple[str, str], tuple[str, ...]] | None = None,
         nxdomains: tuple[str, ...] = (),
+        unresolvable: tuple[tuple[str, str], ...] = (),
     ) -> None:
         super().__init__()
         self.zone = {(h.lower(), t.upper()): v for (h, t), v in (zone or {}).items()}
         self.nxdomains = {h.lower() for h in nxdomains}
+        #: Pares (host, rtype) que simulan un timeout: la consulta no concluye.
+        #: Permite ejercitar la distinción entre ausencia y fallo de medición.
+        self.unresolvable = {(h.lower(), t.upper()) for h, t in unresolvable}
         self.queries: list[tuple[str, str]] = []
 
-    async def query(self, host: str, rtype: str) -> tuple[tuple[str, ...], bool]:
+    async def query(self, host: str, rtype: str) -> DnsAnswer:
         host = host.rstrip(".").lower()
         rtype = rtype.upper()
         self.queries.append((host, rtype))
+        if (host, rtype) in self.unresolvable:
+            return DnsAnswer(failed=True)
         if host in self.nxdomains:
-            return (), True
-        return self.zone.get((host, rtype), ()), False
+            return DnsAnswer(nxdomain=True)
+        return DnsAnswer(values=self.zone.get((host, rtype), ()))
 
 
 @pytest.fixture

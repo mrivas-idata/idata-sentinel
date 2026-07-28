@@ -34,16 +34,43 @@ def _render(rdata: object) -> str:
 
 
 @dataclass(frozen=True)
+class DnsAnswer:
+    """Resultado de una consulta, con los tres desenlaces distinguidos.
+
+    Devolver `((), False)` tanto para "no hay registro" como para "no pude
+    consultarlo" hacía que un timeout se reportara como ausencia: así se emitió
+    un `spf_missing` sobre un dominio que sí publica SPF. `failed` es lo que
+    separa una observación de un fallo de medición.
+    """
+
+    values: tuple[str, ...] = ()
+    nxdomain: bool = False
+    failed: bool = False
+
+    @property
+    def measured(self) -> bool:
+        """La consulta concluyó: los valores (aunque vacíos) son una observación."""
+        return not self.failed
+
+
+@dataclass(frozen=True)
 class DnsRecords:
     """Snapshot DNS de un host. `nxdomain` distingue "el nombre no existe" de
-    "existe pero no tiene este registro" — clave para detectar takeover."""
+    "existe pero no tiene este registro" — clave para detectar takeover.
+    `unresolved` recoge los tipos que no se pudieron consultar, para que quien
+    los lea no confunda "vacío" con "no medido"."""
 
     host: str
     records: dict[str, tuple[str, ...]] = field(default_factory=dict)
     nxdomain: bool = False
+    unresolved: frozenset[str] = frozenset()
 
     def get(self, rtype: str) -> tuple[str, ...]:
         return self.records.get(rtype.upper(), ())
+
+    def measured(self, rtype: str) -> bool:
+        """Si la consulta de este tipo llegó a concluir."""
+        return rtype.upper() not in self.unresolved
 
     @property
     def resolves(self) -> bool:
@@ -67,7 +94,7 @@ class DnsResolver:
 
     def __init__(self, *, timeout: float = DEFAULT_TIMEOUT, max_concurrency: int = 10) -> None:
         self.timeout = timeout
-        self._cache: dict[tuple[str, str], tuple[tuple[str, ...], bool]] = {}
+        self._cache: dict[tuple[str, str], DnsAnswer] = {}
         self._semaphore = asyncio.Semaphore(max_concurrency)
         self._resolver: dns.asyncresolver.Resolver | None = None
 
@@ -79,36 +106,46 @@ class DnsResolver:
             self._resolver = resolver
         return self._resolver
 
-    async def query(self, host: str, rtype: str) -> tuple[tuple[str, ...], bool]:
-        """Devuelve (valores, nxdomain). Ante cualquier fallo: ((), False)."""
+    async def query(self, host: str, rtype: str) -> DnsAnswer:
+        """Nunca lanza. Distingue respuesta vacía (`NoAnswer`, el registro no
+        existe) de fallo de consulta (`Timeout`/`SERVFAIL`, no se pudo medir)."""
         host = host.rstrip(".").lower()
         key = (host, rtype.upper())
         if key in self._cache:
             return self._cache[key]
 
-        values: tuple[str, ...] = ()
-        nxdomain = False
+        answer = DnsAnswer()
         try:
             async with self._semaphore:
-                answer = await self._get_resolver().resolve(host, rtype)
-            values = tuple(_render(r) for r in answer)
+                response = await self._get_resolver().resolve(host, rtype)
+            answer = DnsAnswer(values=tuple(_render(r) for r in response))
         except dns.resolver.NXDOMAIN:
-            nxdomain = True
+            answer = DnsAnswer(nxdomain=True)
+        except (dns.resolver.NoAnswer, dns.resolver.NoNameservers):
+            # El nombre existe pero no tiene este tipo de registro: es una
+            # observación válida, no un fallo.
+            answer = DnsAnswer()
         except (dns.exception.DNSException, OSError, ValueError) as e:
-            logger.debug("DNS %s/%s falló: %s", host, rtype, e)
+            logger.debug("DNS %s/%s no se pudo consultar: %s", host, rtype, e)
+            answer = DnsAnswer(failed=True)
 
-        self._cache[key] = (values, nxdomain)
-        return values, nxdomain
+        self._cache[key] = answer
+        return answer
 
     async def records_for(
         self, host: str, rtypes: tuple[str, ...] = INVENTORY_RECORD_TYPES
     ) -> DnsRecords:
-        results = await asyncio.gather(*(self.query(host, rt) for rt in rtypes))
-        records = {rt: values for rt, (values, _) in zip(rtypes, results) if values}
+        answers = await asyncio.gather(*(self.query(host, rt) for rt in rtypes))
+        records = {rt: a.values for rt, a in zip(rtypes, answers) if a.values}
+        unresolved = frozenset(rt for rt, a in zip(rtypes, answers) if a.failed)
         # NXDOMAIN solo es concluyente si *ningún* tipo devolvió datos.
-        nxdomain = all(nx for _, nx in results) if results else False
-        return DnsRecords(host=host, records=records, nxdomain=nxdomain and not records)
+        nxdomain = all(a.nxdomain for a in answers) if answers else False
+        return DnsRecords(
+            host=host,
+            records=records,
+            nxdomain=nxdomain and not records,
+            unresolved=unresolved,
+        )
 
-    async def txt(self, name: str) -> tuple[str, ...]:
-        values, _ = await self.query(name, "TXT")
-        return values
+    async def txt(self, name: str) -> DnsAnswer:
+        return await self.query(name, "TXT")

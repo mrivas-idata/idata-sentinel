@@ -11,11 +11,9 @@ from idata_sentinel.modules.data_privacy.compliance import (
     build_compliance_checklist,
 )
 from idata_sentinel.modules.data_privacy.module import DataPrivacyModule
+from idata_sentinel.core.check_base import FINDING_CONTRACT_KEYS
 
-_CONTRACT_KEYS = {
-    "id", "module", "category", "severity", "likelihood", "status",
-    "title", "finding", "business_impact", "recommendation", "evidence", "references",
-}
+_CONTRACT_KEYS = FINDING_CONTRACT_KEYS
 
 _LEAKY_PAGE = (
     '<script src="https://www.google-analytics.com/analytics.js"></script>'
