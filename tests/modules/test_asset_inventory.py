@@ -24,6 +24,17 @@ def _crtsh(*names: str) -> httpx.Response:
     return httpx.Response(200, text=json.dumps([{"name_value": n} for n in names]))
 
 
+def _mock_certspotter(*names: str, response: httpx.Response | None = None) -> None:
+    """El descubrimiento consulta dos registros de CT en paralelo. Los tests que
+    solo simulan crt.sh dejan a certspotter sin mock, y el `return_exceptions`
+    del gather se lo traga: el test pasaría por el motivo equivocado."""
+    respx.get(url__startswith="https://api.certspotter.com/").mock(
+        return_value=response
+        if response is not None
+        else httpx.Response(200, text=json.dumps([{"dns_names": list(names)}] if names else []))
+    )
+
+
 def _zone(extra: dict | None = None) -> dict:
     zone = {
         (APEX, "A"): ("203.0.113.10",),
@@ -51,6 +62,7 @@ def _mock_web(default_body: str = "<html><title>IDATA</title></html>") -> None:
     respx.get(url__startswith="https://crt.sh/").mock(
         return_value=_crtsh("www." + APEX, "dev." + APEX)
     )
+    _mock_certspotter()
     respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
         return_value=httpx.Response(200, headers={"Server": "nginx/1.18.0"}, text=default_body)
     )
@@ -120,6 +132,7 @@ async def test_non_production_subdomain_is_flagged(fake_dns):
 @respx.mock
 async def test_target_is_always_included_even_if_discovery_fails(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(side_effect=httpx.ConnectError("down"))
+    _mock_certspotter()
     respx.get(url__regex=r"https://.*idata\.test/").mock(return_value=httpx.Response(200, text="ok"))
 
     output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
@@ -128,10 +141,12 @@ async def test_target_is_always_included_even_if_discovery_fails(fake_dns):
 
 
 @respx.mock
-async def test_a_failed_discovery_is_declared_not_hidden(fake_dns):
+async def test_a_partial_discovery_is_declared_not_hidden(fake_dns):
     """Un inventario incompleto presentado como completo es peor que no tenerlo:
-    el cliente creería que esa es toda su superficie de ataque."""
+    el cliente creería que esa es toda su superficie de ataque. Con un registro
+    caído el inventario sigue sirviendo, pero deja de ser exhaustivo."""
     respx.get(url__startswith="https://crt.sh/").mock(side_effect=httpx.ReadTimeout("lento"))
+    _mock_certspotter("api." + APEX)
     respx.get(url__regex=r"https://.*idata\.test/").mock(return_value=httpx.Response(200, text="ok"))
 
     output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
@@ -140,8 +155,83 @@ async def test_a_failed_discovery_is_declared_not_hidden(fake_dns):
         f for f in output.findings if f["id"].startswith("asset_discovery_incomplete")
     )
     assert warning["status"] == "warning"
+    assert "no puede presentarse como exhaustivo" in warning["finding"]
+    assert "certspotter" in warning["finding"]  # se dice cuál respondió
+    assert output.artifacts["surface_map"]["discovery_complete"] is False
+
+    # …y lo que la fuente viva aportó se conserva: esa es la razón de tener dos.
+    hosts = {a["host"] for a in output.artifacts["surface_map"]["assets"]}
+    assert "api." + APEX in hosts
+
+
+@respx.mock
+async def test_a_total_discovery_failure_says_so(fake_dns):
+    respx.get(url__startswith="https://crt.sh/").mock(side_effect=httpx.ReadTimeout("lento"))
+    _mock_certspotter(response=httpx.Response(502))
+    respx.get(url__regex=r"https://.*idata\.test/").mock(return_value=httpx.Response(200, text="ok"))
+
+    output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
+
+    warning = next(
+        f for f in output.findings if f["id"].startswith("asset_discovery_incomplete")
+    )
+    assert "Ningún registro" in warning["finding"]
     assert "incompleto" in warning["finding"]
     assert output.artifacts["surface_map"]["discovery_complete"] is False
+
+
+@respx.mock
+async def test_truncation_by_the_asset_cap_is_declared(fake_dns):
+    """El tope de activos es una decisión de coste nuestra, no una medida de la
+    superficie del cliente: presentarlo como el total repite el mismo engaño."""
+    respx.get(url__startswith="https://crt.sh/").mock(
+        return_value=_crtsh(*[f"a{i}.{APEX}" for i in range(30)])
+    )
+    _mock_certspotter()
+    respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
+        return_value=httpx.Response(200, text="ok")
+    )
+    respx.get(url__regex=r"http://[^/]*idata\.test/").mock(side_effect=httpx.ConnectError("x"))
+
+    output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
+
+    surface = output.artifacts["surface_map"]
+    assert surface["discovery_total_known"] == 30
+    assert surface["discovery_truncated"] > 0
+
+    summary = next(f for f in output.findings if f["id"].startswith("attack_surface_summary"))
+    assert "30 nombre(s)" in summary["finding"]
+    assert "la superficie real es mayor" in summary["finding"]
+
+
+@respx.mock
+async def test_no_truncation_notice_when_everything_fits(fake_dns):
+    _mock_web()
+    output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
+
+    assert output.artifacts["surface_map"]["discovery_truncated"] == 0
+    summary = next(f for f in output.findings if f["id"].startswith("attack_surface_summary"))
+    assert "superficie real es mayor" not in summary["finding"]
+
+
+@respx.mock
+async def test_sources_are_merged_and_their_origin_recorded(fake_dns):
+    """Cada registro de CT ve un subconjunto distinto de certificados: la unión
+    es el motivo de consultar dos, no la redundancia."""
+    respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh("www." + APEX))
+    _mock_certspotter("dev." + APEX, "www." + APEX)
+    respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
+        return_value=httpx.Response(200, text="ok")
+    )
+    respx.get(url__regex=r"http://[^/]*idata\.test/").mock(side_effect=httpx.ConnectError("x"))
+
+    output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
+
+    assets = {a["host"]: a for a in output.artifacts["surface_map"]["assets"]}
+    assert {"www." + APEX, "dev." + APEX} <= set(assets)
+    assert assets["dev." + APEX]["source"] == "certspotter"       # solo la segunda lo vio
+    assert assets["www." + APEX]["source"] == "crt.sh, certspotter"  # ambas
+    assert output.artifacts["surface_map"]["discovery_complete"] is True
 
 
 @respx.mock
@@ -156,6 +246,7 @@ async def test_a_complete_discovery_is_marked_as_such(fake_dns):
 @respx.mock
 async def test_unresolvable_asset_is_inventoried_but_not_probed(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh("gone." + APEX))
+    _mock_certspotter()
     web = respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
         return_value=httpx.Response(200, text="ok")
     )
@@ -172,6 +263,7 @@ async def test_unresolvable_asset_is_inventoried_but_not_probed(fake_dns):
 @respx.mock
 async def test_falls_back_to_http_and_reports_missing_https(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh())
+    _mock_certspotter()
     respx.get(url__regex=r"https://[^/]*idata\.test/").mock(side_effect=httpx.ConnectError("sin tls"))
     respx.get(url__regex=r"http://[^/]*idata\.test/").mock(return_value=httpx.Response(200, text="ok"))
 
@@ -183,6 +275,7 @@ async def test_falls_back_to_http_and_reports_missing_https(fake_dns):
 @respx.mock
 async def test_detects_cdn_and_takeover_risk(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh("old." + APEX))
+    _mock_certspotter()
     respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
         return_value=httpx.Response(200, headers={"CF-RAY": "abc"}, text="ok")
     )
@@ -285,6 +378,7 @@ async def test_max_assets_caps_the_inventory(fake_dns):
 @respx.mock
 async def test_binary_content_type_does_not_break_profiling(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh())
+    _mock_certspotter()
     respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
         return_value=httpx.Response(200, headers={"Content-Type": "image/png"}, content=b"\x89PNG\x00")
     )

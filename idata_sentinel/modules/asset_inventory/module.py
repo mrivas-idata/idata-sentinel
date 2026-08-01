@@ -72,10 +72,16 @@ class AssetInventoryModule:
         findings.extend(await self._apex_findings(ctx, profiles))
 
         surface = build_surface_map(list(profiles), apex=ctx.apex)
-        surface["discovery_complete"] = discovery.ok
-        if not discovery.ok:
-            findings.append(self._degraded_discovery(ctx, discovery.reason))
-        findings.append(self._summary(surface, ctx))
+        surface["discovery_complete"] = discovery.complete
+        surface["discovery_sources"] = [
+            {"name": s.name, "ok": s.ok, "count": s.count, "reason": s.reason}
+            for s in discovery.sources
+        ]
+        surface["discovery_truncated"] = discovery.truncated
+        surface["discovery_total_known"] = discovery.total_known
+        if not discovery.complete:
+            findings.append(self._degraded_discovery(ctx, discovery))
+        findings.append(self._summary(surface, ctx, discovery))
 
         return ModuleOutput(
             findings=[f.to_dict() for f in findings],
@@ -121,7 +127,7 @@ class AssetInventoryModule:
             discovery = DiscoveryResult([], ok=False, reason=f"error interno: {type(e).__name__}")
 
         for host in discovery.hosts:
-            ordered.setdefault(host, "crt.sh")
+            ordered.setdefault(host, discovery.host_sources.get(host, "CT logs"))
 
         for host in ctx.additional_assets:
             host = host.strip().lower().rstrip(".")
@@ -130,15 +136,29 @@ class AssetInventoryModule:
 
         return list(ordered.items())[: ctx.max_assets], discovery
 
-    def _degraded_discovery(self, ctx: AssetInventoryContext, reason: str) -> CheckResult:
+    def _degraded_discovery(self, ctx: AssetInventoryContext, discovery) -> CheckResult:
+        """Se emite también cuando *parte* de las fuentes respondió.
+
+        Un inventario construido con un registro caído sigue siendo útil, pero
+        presentarlo como exhaustivo es lo que hacía que el cliente leyera "1
+        activo" y creyera que esa era toda su superficie.
+        """
+        responded = [s.name for s in discovery.sources if s.ok]
+        finding = (
+            f"Ningún registro de Certificate Transparency respondió: {discovery.reason}. "
+            f"El inventario de este escaneo puede estar incompleto."
+            if not responded
+            else (
+                f"Se consultaron {len(discovery.sources)} registros de Certificate Transparency "
+                f"y respondió {', '.join(responded)}; falló {discovery.reason}. El inventario es "
+                f"utilizable pero no puede presentarse como exhaustivo."
+            )
+        )
         return self._check_helper()._result(
             sub_id=f"asset_discovery_incomplete@{ctx.host}",
             severity="info", likelihood="low", status="warning",
             title="El descubrimiento de subdominios no pudo completarse",
-            finding=(
-                f"No se pudo consultar el registro de Certificate Transparency: {reason}. "
-                f"El inventario de este escaneo puede estar incompleto."
-            ),
+            finding=finding,
             business_impact=(
                 "Un inventario parcial da una falsa sensación de superficie reducida. "
                 "Los activos no descubiertos son precisamente los que nadie vigila."
@@ -147,7 +167,11 @@ class AssetInventoryModule:
                 "Repetir el escaneo más tarde. Si el problema persiste, aportar el listado "
                 "de subdominios conocidos para completar el inventario manualmente."
             ),
-            evidence=reason, references=("CIS Control 1",),
+            evidence="; ".join(
+                f"{s.name}: {'ok, ' + str(s.count) + ' nombre(s)' if s.ok else s.reason}"
+                for s in discovery.sources
+            ),
+            references=("CIS Control 1",),
         )
 
     @staticmethod
@@ -245,10 +269,20 @@ class AssetInventoryModule:
                 evidence=str(e),
             )]
 
-    def _summary(self, surface: dict, ctx: AssetInventoryContext) -> CheckResult:
+    def _summary(self, surface: dict, ctx: AssetInventoryContext, discovery) -> CheckResult:
         totals = surface["totals"]
         exposure = surface["exposure_summary"]
         check = AssetExposureCheck()
+        # El tope de activos a perfilar es una decisión nuestra de coste, no una
+        # medida de la superficie del cliente. Callarlo repetía el mismo engaño
+        # que motivó la segunda fuente: presentar un recorte como el total.
+        truncated = (
+            f" Los registros de CT conocen {discovery.total_known} nombre(s) bajo el dominio; "
+            f"se perfilaron los {len(discovery.hosts)} más relevantes por el tope de este escaneo, "
+            f"así que la superficie real es mayor que la inventariada aquí."
+            if discovery.truncated
+            else ""
+        )
         return check._result(
             sub_id=f"attack_surface_summary@{ctx.host}",
             severity="info", likelihood="low", status="info",
@@ -257,6 +291,7 @@ class AssetInventoryModule:
                 f"Se inventariaron {totals['discovered']} activo(s): {totals['resolving']} resuelven en DNS, "
                 f"{totals['reachable']} responden por web ({totals['https']} sobre HTTPS). "
                 f"{totals['distinct_ips']} IP(s) y {totals['distinct_technologies']} tecnología(s) distintas."
+                f"{truncated}"
             ),
             business_impact=(
                 "Cada activo accesible es una puerta potencial. Conocer el inventario completo es "
