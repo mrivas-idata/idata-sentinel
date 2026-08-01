@@ -10,3 +10,6 @@ dist/
 .coverage
 htmlcov/
 .claude/scheduled_tasks.lock
+
+# Salidas de escaneo y entregables generados (PDFs, JSON, dumps) — no versionar
+out/
