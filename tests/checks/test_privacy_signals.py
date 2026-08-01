@@ -191,6 +191,38 @@ async def test_sensitive_data_form_is_flagged(make_ctx):
 
 
 @respx.mock
+async def test_a_privacy_policy_link_does_not_read_as_ideology_data(make_ctx):
+    """Regresión: el patrón de 'ideología' incluía `politic`, que matchea
+    'Política de Privacidad' —el texto más común junto a cualquier formulario— y
+    disparaba un `high` falso de 'recolecta datos de ideología'. Visto en el
+    escaneo real de un sitio que solo pedía nombre, email y organización."""
+    html = (
+        '<form action="/demo">'
+        '<input name="nombre"><input name="email"><input name="organizacion">'
+        '<p>Al enviar aceptas nuestra <a href="/politica-de-privacidad">'
+        'Política de Privacidad</a>.</p></form>'
+    )
+    respx.get("https://example.test/").mock(return_value=httpx.Response(200, text=html))
+    results = await PrivacyFormsCheck().run(make_ctx())
+
+    assert "sensitive_data_collected" not in _ids(results)
+
+
+@respx.mock
+async def test_real_political_affiliation_field_is_still_flagged(make_ctx):
+    """La corrección no debe apagar la detección legítima: un campo de afiliación
+    política sí es dato sensible del Art. 2 g) de la Ley 21.719."""
+    respx.get("https://example.test/").mock(return_value=httpx.Response(
+        200, text='<a href="/privacidad">P</a>'
+        '<form action="/x"><input name="afiliacion_politica"></form>'))
+    results = await PrivacyFormsCheck().run(make_ctx())
+
+    finding = next(r for r in results if r.id.startswith("sensitive_data_collected"))
+    assert finding.severity == "high"
+    assert "ideologia" in finding.finding
+
+
+@respx.mock
 async def test_forms_check_is_silent_without_pii(make_ctx):
     respx.get("https://example.test/").mock(return_value=httpx.Response(
         200, text='<form action="/buscar"><input name="q"></form>'))

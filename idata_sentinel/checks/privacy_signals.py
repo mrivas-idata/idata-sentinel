@@ -41,7 +41,15 @@ PII_PATTERNS: dict[str, re.Pattern] = {
     "fecha_nacimiento": re.compile(r"(birth|nacimiento|fecha-?nac|edad|\bage\b)", re.IGNORECASE),
     "salud": re.compile(r"(salud|health|isapre|fonasa|prevision|diagnostic|enfermedad|medic|discapacidad)", re.IGNORECASE),
     "biometrico": re.compile(r"(huella|biometric|facial|iris|\badn\b|genetic)", re.IGNORECASE),
-    "ideologia": re.compile(r"(religion|politic|sindicat|creencia|ideolog)", re.IGNORECASE),
+    # `politic` a secas matchea "política de privacidad" — el texto más común
+    # cerca de cualquier formulario— y disparaba un `high` falso de "recolecta
+    # ideología". Se exige contexto de opinión/afiliación política real; "política"
+    # como sinónimo de "policy" ya no cuenta.
+    "ideologia": re.compile(
+        r"(\breligion\b|\bcredo\b|afiliacion[-_ ]?polit|opinion[-_ ]?polit|"
+        r"militancia|partido[-_ ]?polit|ideolog|\bsindicat|creencia[-_ ]?relig)",
+        re.IGNORECASE,
+    ),
     "vida_sexual": re.compile(r"(orientacion-?sexual|sexual-?orientation|identidad-?genero)", re.IGNORECASE),
     "origen_etnico": re.compile(r"(etnia|etnico|raza|racial|pueblo-?originario|nacionalidad)", re.IGNORECASE),
     "socioeconomico": re.compile(r"(renta|ingreso|salario|sueldo|patrimonio|deuda|tarjeta|banco|cuenta-?corriente)", re.IGNORECASE),
