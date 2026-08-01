@@ -8,7 +8,7 @@ clientes con contrato como para prospección con información pública.
 
 | Módulo | Alias | Qué resuelve |
 |---|---|---|
-| Identificación de vulnerabilidades | `vuln` | Cabeceras, TLS, cookies, fingerprint + CVE informativa, archivos de seguridad, exposición de información |
+| Identificación de vulnerabilidades | `vuln` | Cabeceras, TLS, cookies, fingerprint de stack y de componentes WordPress (plugins/temas) + CVE informativa, archivos de seguridad, exposición de información |
 | Inventario de activos | `assets` | Subdominios por Certificate Transparency, DNS, seguridad de correo, takeover, CDN/WAF, superficie de ataque |
 | Datos Personales (Ley 21.719) | `privacy` | Formularios con datos personales, consentimiento, rastreadores, transferencias internacionales, semáforo por principio |
 | Monitoreo continuo | `monitor` | Línea base, diff entre escaneos, alertas por webhook, tendencia del score |
@@ -23,8 +23,14 @@ hallazgos produce y bajo qué límites legales opera.
 | **Prospección (pasivo)** | Solo información que el servidor ya publica | No requerida |
 | **Auditoría (activo no destructivo)** | Añade las rutas y activos que declara el cliente | **Obligatoria y registrada** |
 
-El modo auditoría **no** habilita técnicas nuevas: solo amplía la superficie que el
-propio cliente declaró. En ningún modo se hace fuerza bruta, prueba de credenciales,
+El modo auditoría amplía la superficie que el propio cliente declaró y suma
+**checks de configuración activos no destructivos** (métodos HTTP vía `OPTIONS`,
+política CORS, exigencia de autenticación en endpoints declarados, cadenas de
+redirección) más la comparación contra un **baseline de hardening acordado**.
+Todo es de solo lectura: solo emite `GET`/`HEAD`/`OPTIONS`, nunca muta estado.
+Cada técnica activa exige habilitarse **por nombre** (`--active-check <id>`) más
+la doble confirmación `--i-understand-active`: sin eso, `--mode audit` solo
+expande superficie. En ningún modo se hace fuerza bruta, prueba de credenciales,
 inyección, fuzzing de rutas, denegación de servicio ni explotación de CVE.
 
 ## Marco legal
@@ -41,6 +47,10 @@ información publicada.
   (`IDATA-Sentinel/1.0 (+https://idatachile.com)`) y respeto de `robots.txt`.
 - Ante un posible *subdomain takeover* se reporta el riesgo pero **nunca** se reclama el
   recurso huérfano.
+- Si el objetivo responde con una página de verificación anti-bot, el escaneo lo
+  detecta y **declara no evaluable** todo lo que dependa del contenido, en vez de
+  describir esa página como si fuera el sitio. El desafío no se resuelve ni se
+  evade: hacerlo sería evasión, prohibida en ambos modos.
 
 ## Instalación
 

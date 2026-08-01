@@ -33,8 +33,14 @@ def build_report_context(scan_result: dict, risk: dict, *, report_number: str | 
     branding = load_branding()
     modules = scan_result.get("modules", {})
     all_findings = [f for findings in modules.values() for f in findings]
+    coverage_notice = next(
+        (f for f in all_findings if f["id"].startswith("scan_blocked_by_interstitial")), None
+    )
     actionable = sorted(
-        (f for f in all_findings if f["status"] in ("fail", "warning")),
+        (
+            f for f in all_findings
+            if f["status"] in ("fail", "warning") and f is not coverage_notice
+        ),
         key=lambda f: _SEVERITY_ORDER.get(f["severity"], 5),
     )
 
@@ -65,6 +71,11 @@ def build_report_context(scan_result: dict, risk: dict, *, report_number: str | 
         "grade": risk["grade"],
         "grade_class": _GRADE_CLASS.get(risk["grade"], "info"),
         "module_summaries": module_summaries,
+        #: Aviso de que el escaneo no llegó a ver el sitio. Va fuera de
+        #: `all_findings` a propósito: no es un hallazgo del objetivo y no debe
+        #: contar en los totales, pero tiene que encabezar el resumen ejecutivo
+        #: — es la advertencia de que el resto del informe no lo describe.
+        "coverage_notice": coverage_notice,
         "top_findings": actionable[:5],
         "all_findings": actionable,
         "total_findings": len(actionable),

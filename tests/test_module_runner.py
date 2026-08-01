@@ -33,9 +33,12 @@ async def test_safe_run_contains_exceptions(make_ctx):
     assert "crashing_error" in results[0].id
 
 
-def test_checks_for_mode_returns_all_for_passive():
+def test_checks_for_mode_returns_only_passive_capable_checks():
+    """Los checks activos declaran solo `audit`: no aparecen en modo pasivo."""
     checks = checks_for_mode("passive")
-    assert {type(c) for c in checks} == set(ALL_CHECKS)
+    expected = {C for C in ALL_CHECKS if "passive" in C.modes}
+    assert {type(c) for c in checks} == expected
+    assert all(not getattr(c, "active", False) for c in checks)  # ningún activo en pasivo
 
 
 @pytest.mark.asyncio

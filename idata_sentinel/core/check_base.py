@@ -128,6 +128,23 @@ class BaseCheck(ABC):
     module: str = "vuln_identification"
     modes: frozenset[Mode] = frozenset({"passive", "audit"})
 
+    #: Si el check deduce del contenido o de las cabeceras que emite la
+    #: aplicación. Cuando el servidor entrega una página intersticial anti-bot,
+    #: lo observado no es el sitio y estos checks deben declararse no evaluables
+    #: en vez de afirmar sobre la página equivocada (`core/interstitial.py`).
+    #: Los checks que miden la infraestructura —TLS, DNS— no se ven afectados y
+    #: lo marcan en `False`.
+    content_dependent: bool = True
+
+    #: Si el check ejecuta una **técnica activa** (auditoría no destructiva) que
+    #: exige habilitación explícita por nombre además del gate legal
+    #: (plan_implementacion_escaneo_activo.md §4). Los checks pasivos y los que
+    #: solo expanden superficie declarada dejan esto en `False`; solo los checks
+    #: de configuración activos (métodos HTTP, CORS, auth-enforcement, etc.) lo
+    #: marcan en `True`. Aditivo: no cambia el comportamiento de ningún check
+    #: existente.
+    active: bool = False
+
     @abstractmethod
     async def run(self, ctx: "ScanContext") -> list[CheckResult]: ...
 
@@ -180,4 +197,20 @@ class BaseCheck(ABC):
             recommendation="Reintentar el escaneo; si persiste, verificar conectividad al objetivo.",
             evidence=evidence,
             confidence="unverified",
+        )
+
+    def _interstitial_result(self, signal) -> CheckResult:
+        """El objetivo respondió con una página de verificación anti-bot.
+
+        No es un fallo del objetivo ni un hallazgo de seguridad: es que no se
+        pudo mirar el sitio. Se emite `unverified` para que ni penalice el score
+        ni cuente esta dimensión como cubierta.
+        """
+        return self._error_result(
+            sub_id=f"{self.id}_interstitial",
+            reason=(
+                f"{signal.summary} Este check no se ejecutó: evaluarlo sobre la página de "
+                f"verificación habría producido hallazgos falsos sobre el sitio real."
+            ),
+            evidence=signal.evidence,
         )

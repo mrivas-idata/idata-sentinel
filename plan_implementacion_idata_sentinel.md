@@ -141,6 +141,36 @@ idata_sentinel/
 - **Archivos de seguridad:** `security.txt` (RFC 9116), `robots.txt` (rutas sensibles filtradas), listado de directorios abierto (solo detección).
 - **Exposición de información:** errores verbosos, metadatos, formularios sin HTTPS.
 
+### 3.1 Páginas intersticiales: cuándo el escaneo no vio el sitio
+
+Un WAF o servicio anti-bot puede responder **200 con una página de verificación**
+("Un momento… Espere mientras se verifica su solicitud") en vez del sitio. Si
+nadie lo detecta, todos los checks que deducen del contenido o de las cabeceras
+de la aplicación describen esa página: se reportan cabeceras ausentes, ausencia
+de formularios y —el peor caso— `privacy_policy_missing` en severidad `high`
+sobre una página de espera de 7 KB. En prospección ese hallazgo se le envía a un
+prospecto que lo desmiente en dos clics.
+
+`core/interstitial.py` detecta la condición sobre la respuesta de la raíz y el
+escaneo se degrada de forma explícita:
+
+- Los checks marcados `content_dependent` (todo el Módulo 3, cabeceras, cookies,
+  fingerprint, exposición) devuelven "no evaluable" (`confidence="unverified"`),
+  que no penaliza el score ni cuenta la dimensión como cubierta.
+- Los que miden infraestructura —TLS, DNS, correo, inventario— siguen corriendo:
+  su medición es válida igual.
+- Se emite un aviso único, `scan_blocked_by_interstitial`, que encabeza tanto el
+  resumen en consola como el resumen ejecutivo del PDF.
+
+**El intersticial no se evade nunca.** Detectarlo sirve para declarar el escaneo
+no evaluable, no para saltárselo: resolver un desafío anti-bot sería exactamente
+la evasión que §1.2 prohíbe en ambos modos.
+
+Los marcadores cubren español, inglés y portugués. El cliente pide
+`Accept-Language: es-CL`, así que contra objetivos chilenos —el mercado de la
+herramienta— el desafío llega localizado al español: detectarlo solo en inglés
+dejaría pasar justo el caso normal.
+
 ### Checks adicionales de Auditoría (solo con autorización, no destructivos)
 - Validación más profunda de configuración de cabeceras por ruta.
 - Revisión de endpoints conocidos del cliente (provistos por él).
@@ -153,7 +183,31 @@ idata_sentinel/
 > Alineado a "Levantamiento completo... para conocer la superficie de ataque real".
 
 ### Descubrimiento pasivo
-- **Subdominios** vía Certificate Transparency logs (`crt.sh`) y DNS público.
+- **Subdominios** vía Certificate Transparency logs y DNS público. Se consultan
+  **dos registros independientes en paralelo** (`crt.sh` y `certspotter`) y se
+  fusionan sus respuestas.
+
+  La redundancia no es teórica: crt.sh es intermitente —el código ya documentaba
+  que "alternó 200, 404, 502 y timeout en cuestión de minutos"— y con una sola
+  fuente el módulo se quedaba sin inventario justo cuando ese servicio caía. En
+  dos escaneos reales consecutivos el descubrimiento devolvió cero subdominios y
+  el informe presentó "1 activo" como si fuera toda la superficie del cliente.
+  Sobre uno de esos objetivos, con crt.sh en 502, la segunda fuente aportó 17
+  subdominios; con ambas activas, 39 nombres — entre ellos un `dev` servido solo
+  por HTTP, un panel `cpanel` y dos tiendas.
+
+  Se consultan en paralelo, no en cascada: dos registros lentos en serie
+  duplicarían la espera, y cada uno ve un subconjunto distinto de certificados,
+  así que la unión aporta más que el respaldo.
+
+  Sigue siendo estrictamente pasivo: es lectura de registros públicos, sin
+  adivinar nombres por diccionario.
+
+- **Honestidad del inventario.** El artefacto declara qué registros respondieron
+  y cuántos nombres conocen. Si una fuente cae, el inventario se marca no
+  exhaustivo; si el tope de activos trunca la lista, el resumen dice cuántos
+  nombres existen frente a cuántos se perfilaron. Un recorte presentado como
+  total es el mismo engaño que un inventario vacío presentado como completo.
 - **Registros DNS:** A, AAAA, MX, TXT, NS, CAA.
 - **Tecnologías** por dominio/subdominio (stack, CDN, WAF detectable, proveedores cloud).
 - **Servicios web expuestos** (solo los publicados; sin escaneo de puertos masivo).
@@ -225,6 +279,30 @@ idata_sentinel/
 | Info      | 0  |
 
 Ajuste por probabilidad (multiplicador): high ×1.0, medium ×0.7, low ×0.4.
+
+### 7.1 Agregación: retorno decreciente y techo por severidad
+
+Sumar linealmente los pesos de todos los hallazgos —la primera implementación—
+tenía un efecto que invalidaba la nota: como el score global sumaba las
+penalizaciones de *todos* los módulos, quedaba siempre por debajo de cada
+subscore individual y **empeoraba solo por correr más módulos**. En los cuatro
+escaneos reales hechos hasta ahora la nota fue F (12, 12, 35, 50), y una nota que
+siempre dice lo mismo no informa nada — menos aún siendo el titular del resumen
+ejecutivo (§8.2), que es lo que ve el prospecto.
+
+La agregación vigente corrige eso con dos reglas, ambas configurables en
+`weights.yaml`:
+
+- **Retorno decreciente** (`accumulation_decay`, 0.75): los hallazgos se ordenan
+  por peso y el k-ésimo aporta `peso × decay^(k-1)`. Los peores dominan la nota y
+  una cola larga de hallazgos `low` deja de equivaler a un `critical`. Con 1.0 se
+  restaura la suma lineal.
+- **Techo por severidad** (`severity_caps`): un `critical` limita la nota a 59
+  (F), un `high` a 74 (C), un `medium` a 89 (B). Evita que el retorno decreciente
+  indulte un hallazgo grave aislado — un certificado vencido debe reprobar aunque
+  sea el único hallazgo del escaneo.
+
+Los hallazgos `unverified` (§3.1) no penalizan: no afirman nada sobre el objetivo.
 
 ---
 

@@ -86,6 +86,7 @@ async def test_later_modules_receive_earlier_findings():
 
 @respx.mock
 async def test_robots_is_fetched_once_and_shared():
+    respx.get("https://example.test/").mock(return_value=httpx.Response(200, text="<html></html>"))
     route = respx.get("https://example.test/robots.txt").mock(
         return_value=httpx.Response(200, text="User-agent: *\nDisallow: /admin")
     )
@@ -103,6 +104,7 @@ async def test_robots_is_fetched_once_and_shared():
 
 @respx.mock
 async def test_missing_robots_yields_permissive_policy():
+    respx.get("https://example.test/").mock(return_value=httpx.Response(200, text="<html></html>"))
     respx.get("https://example.test/robots.txt").mock(return_value=httpx.Response(404))
 
     module = _RecordingModule("vuln_identification")

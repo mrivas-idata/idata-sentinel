@@ -6,6 +6,7 @@ Recolección (socket/ssl, bloqueante, corre en thread) separada de evaluación
 from __future__ import annotations
 
 import asyncio
+import re
 import socket
 import ssl
 from dataclasses import dataclass
@@ -203,10 +204,20 @@ def evaluate_tls(collection: TlsCollection, host: str) -> list[dict]:
     return findings
 
 
+def _tls_version_tuple(protocol: str) -> tuple[int, ...]:
+    """'TLSv1.2' -> (1, 2). Un protocolo no reconocido queda como (0,) para no
+    fallar en falso una comparación de baseline."""
+    match = re.search(r"(\d+)\.(\d+)", protocol or "")
+    return (int(match.group(1)), int(match.group(2))) if match else (0,)
+
+
 class TlsSslCheck(BaseCheck):
     id = "tls_ssl"
     category = "TLS/SSL"
     modes = frozenset({"passive", "audit"})
+    #: El handshake, el certificado y la redirección a HTTPS son propiedades de
+    #: la infraestructura: se miden igual aunque delante haya un intersticial.
+    content_dependent = False
 
     async def run(self, ctx: ScanContext) -> list[CheckResult]:
         out: list[CheckResult] = []
@@ -222,7 +233,35 @@ class TlsSslCheck(BaseCheck):
                 out.append(self._result(**raw))
 
         out.extend(await self._check_https_redirect(ctx))
+        out.extend(self._tls_baseline_mismatch(collection, ctx))
         return out
+
+    def _tls_baseline_mismatch(self, collection, ctx: ScanContext) -> list[CheckResult]:
+        """Compara la versión TLS negociada contra el mínimo acordado (plan activo §5)."""
+        from idata_sentinel.core.baseline import for_context
+
+        baseline = for_context(ctx)
+        if baseline is None or collection.protocol is None:
+            return []
+        requirement = baseline.tls_min_version("/")
+        if requirement is None:
+            return []
+        min_version, severity = requirement
+        if _tls_version_tuple(collection.protocol) >= _tls_version_tuple(min_version):
+            return []
+        return [self._result(
+            sub_id=f"tls_baseline_mismatch@{ctx.host}",
+            severity=severity, likelihood="medium", status="fail", confidence="confirmed",
+            title="Versión TLS por debajo del baseline acordado",
+            finding=(
+                f"El baseline v{baseline.version} exige al menos {min_version}; el servidor "
+                f"negoció {collection.protocol}."
+            ),
+            business_impact="La configuración TLS no cumple el estándar de hardening comprometido con el cliente.",
+            recommendation=f"Deshabilitar versiones anteriores a {min_version} en el servidor.",
+            evidence=f"negociado={collection.protocol}, mínimo acordado={min_version}",
+            references=("baseline",),
+        )]
 
     async def _check_https_redirect(self, ctx: ScanContext) -> list[CheckResult]:
         outcome = await ctx.get_http_outcome("/")

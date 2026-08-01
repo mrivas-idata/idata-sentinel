@@ -11,8 +11,10 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from idata_sentinel.core.authorization import AuthorizationRequest
+from idata_sentinel.core.active_gate import ActiveCapabilityGate
+from idata_sentinel.core.authorization import AuditLogger, AuthorizationRequest
 from idata_sentinel.core.engine import Engine, ScanRequest
+from idata_sentinel.core.session import ClientSession, SessionError
 from idata_sentinel.docs import all_modules, module_help
 from idata_sentinel.modules.asset_inventory.module import AssetInventoryModule
 from idata_sentinel.modules.data_privacy.module import DataPrivacyModule
@@ -90,6 +92,18 @@ def scan(
     contract: str = typer.Option("", "--contract", help="N° de contrato/orden"),
     allowed_domain: list[str] = typer.Option([], "--allowed-domain", help="Dominio en scope (repetible)"),
     asset: list[str] = typer.Option([], "--asset", help="Activo adicional del cliente (solo audit, repetible)"),
+    active_check: list[str] = typer.Option(
+        [], "--active-check",
+        help="Habilita UN check activo por su id (repetible; 'all' = todos). Solo audit.",
+    ),
+    i_understand_active: bool = typer.Option(
+        False, "--i-understand-active",
+        help="Doble confirmación obligatoria para ejecutar checks activos.",
+    ),
+    session_file: Path = typer.Option(
+        None, "--session-file",
+        help="Archivo JSON con la sesión provista por el cliente (escaneo autenticado).",
+    ),
     record: bool = typer.Option(False, "--record", help="Guardar el escaneo y comparar contra la línea base"),
     db: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="Ruta de la base de datos local"),
     webhook: str = typer.Option("", "--webhook", help="URL para enviar alertas del monitoreo"),
@@ -120,6 +134,11 @@ def scan(
             additional_assets=tuple(asset),
         )
 
+    active_gate, client_session = _resolve_active_scope(
+        target=target, mode=mode, active_check=active_check,
+        i_understand_active=i_understand_active, session_file=session_file, db=db,
+    )
+
     store = ScanStore(db) if record else None
     collector = CollectingNotifier()
     notifiers: list = [collector]
@@ -130,7 +149,9 @@ def scan(
         store=store, notifiers=notifiers if record else None, rate_limit=rate_limit
     )
     request = ScanRequest(
-        target=target, mode=mode, modules=_resolve_modules(modules), authorization=authorization
+        target=target, mode=mode, modules=_resolve_modules(modules), authorization=authorization,
+        active_checks=active_gate.enabled, active_acknowledged=active_gate.acknowledged,
+        client_session=client_session,
     )
     result = asyncio.run(engine.scan(request))
 
@@ -169,13 +190,15 @@ def _print_summary(target: str, result: dict, risk) -> None:
     console.print(f"\n[bold]IDATA Sentinel[/bold] — {target} (modo: {result['mode']})")
     console.print(f"Score: [bold]{risk.score}/100[/bold] ({risk.grade})\n")
 
+    all_findings = [f for findings in result["modules"].values() for f in findings]
+    _print_coverage_warning(all_findings)
+
     table = Table(title="Hallazgos")
     table.add_column("Severidad")
     table.add_column("Módulo")
     table.add_column("ID")
     table.add_column("Título")
 
-    all_findings = [f for findings in result["modules"].values() for f in findings]
     actionable = [f for f in all_findings if f["status"] in ("fail", "warning")]
     for f in sorted(actionable, key=lambda f: _SEVERITY_ORDER.get(f["severity"], 5)):
         style = _SEVERITY_STYLE.get(f["severity"], "white")
@@ -195,6 +218,103 @@ def _print_summary(target: str, result: dict, risk) -> None:
             f"\n[bold]Superficie:[/bold] {t['discovered']} activo(s), {t['reachable']} accesible(s), "
             f"{t['https']} sobre HTTPS, {t['distinct_ips']} IP(s)."
         )
+
+
+def _resolve_active_scope(
+    *, target: str, mode: str, active_check: list[str],
+    i_understand_active: bool, session_file: Path | None, db: Path,
+) -> tuple[ActiveCapabilityGate, ClientSession | None]:
+    """Resuelve el gate de activación y la sesión, aplicando las reglas del
+    plan activo §4: activación por nombre, doble confirmación, y **aborto** —no
+    degradación silenciosa— cuando se pide activo sin confirmar."""
+    from idata_sentinel.modules.vuln_identification.registry import active_check_ids
+
+    requested = [c.strip() for c in active_check if c.strip()]
+
+    if requested and mode != "audit":
+        console.print(
+            "[red]Los checks activos solo corren en modo audit.[/red] "
+            "Agrega --mode audit con autorización, o quita --active-check."
+        )
+        raise typer.Exit(code=1)
+
+    if requested and not i_understand_active:
+        # El operador PIDIÓ algo activo: hay que decírselo, no ejecutar a medias.
+        AuditLogger(db.parent / "audit_log.json").record(
+            target=target, decision="denied_active_unacknowledged",
+            request=None, source_ip="cli",
+            active_context={"active_checks_enabled": sorted(requested), "active_acknowledged": False,
+                            "authenticated_scan": session_file is not None},
+        )
+        console.print(
+            "[red]Pediste checks activos pero falta la confirmación.[/red]\n"
+            "El modo activo no corre a medias: agrega [bold]--i-understand-active[/bold] "
+            "para confirmar que tienes autorización para las técnicas activas."
+        )
+        raise typer.Exit(code=1)
+
+    available = active_check_ids()
+    if any(r.lower() == "all" for r in requested):
+        console.print("[yellow]Se activarán TODOS los checks activos:[/yellow]")
+        for cid in available:
+            console.print(f"  · {cid}")
+        console.print()
+    else:
+        unknown = [r for r in requested if r not in available]
+        if unknown:
+            console.print(
+                f"[yellow]Ignorando check(s) activo(s) desconocido(s): {', '.join(unknown)}.[/yellow] "
+                f"Disponibles: {', '.join(available) or '(ninguno)'}."
+            )
+
+    gate = ActiveCapabilityGate.resolve(
+        requested, acknowledged=i_understand_active, available=available
+    )
+
+    if gate.enabled:
+        # El operador ve el alcance activo exacto antes de que corra nada.
+        console.print(Panel(
+            "\n".join(f"  · {cid}" for cid in sorted(gate.enabled)),
+            title="[bold]Técnicas activas que se ejecutarán[/bold]",
+            border_style="red",
+        ))
+        console.print(
+            "[dim]Auditoría activa no destructiva: solo GET/HEAD/OPTIONS, sin payloads. "
+            "Autorización registrada en audit_log.json.[/dim]\n"
+        )
+
+    client_session = None
+    if session_file is not None:
+        try:
+            client_session = ClientSession.from_file(session_file)
+        except SessionError as e:
+            console.print(f"[red]No se pudo cargar la sesión: {e}[/red]")
+            raise typer.Exit(code=1) from e
+        console.print("[dim]Escaneo autenticado: sesión provista por el cliente cargada.[/dim]")
+
+    return gate, client_session
+
+
+def _print_coverage_warning(findings: list[dict]) -> None:
+    """Avisa arriba del todo cuando el escaneo no llegó a ver el sitio.
+
+    Ordenado por severidad, este aviso cae al final de la tabla —es `info`, no
+    es un problema del objetivo— justo cuando es lo primero que el operador
+    tiene que saber: sin esto, el informe se entrega como si describiera el
+    sitio del prospecto.
+    """
+    blocked = next(
+        (f for f in findings if f["id"].startswith("scan_blocked_by_interstitial")), None
+    )
+    if blocked is None:
+        return
+
+    console.print(Panel(
+        f"{blocked['finding']}\n\n[bold]{blocked['recommendation']}[/bold]",
+        title="[bold]Cobertura incompleta — no entregar como diagnóstico del sitio[/bold]",
+        border_style="yellow",
+    ))
+    console.print()
 
 
 def _print_alerts(alerts: list) -> None:

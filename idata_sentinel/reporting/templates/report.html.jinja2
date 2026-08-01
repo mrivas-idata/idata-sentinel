@@ -148,6 +148,15 @@
 <section class="section">
   <div class="section-head"><h2>Resumen ejecutivo</h2><span class="section-num">02</span></div>
 
+  {% if coverage_notice %}
+  <div class="finding" style="border-left-color: {{ severity_color('high') }};">
+    <span class="badge" style="background: {{ severity_color('high') }}">COBERTURA INCOMPLETA</span>
+    <p class="finding-title">{{ coverage_notice.title }}</p>
+    <p>{{ coverage_notice.finding }}</p>
+    <p class="muted small">{{ coverage_notice.recommendation }}</p>
+  </div>
+  {% endif %}
+
   <div class="card">
     <div style="display:flex; align-items:center; gap:18px;">
       <span class="hero-value" style="color: {{ grade_color }}">{{ score }}</span>

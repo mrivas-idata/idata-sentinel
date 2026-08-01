@@ -253,6 +253,45 @@ def test_passive_and_audit_reports_declare_different_scope():
     assert "escaneo autorizado y registrado" in audit
 
 
+_COVERAGE_NOTICE = {
+    "id": "scan_blocked_by_interstitial@example.test", "module": "vuln_identification",
+    "category": "Cobertura del escaneo", "severity": "info", "likelihood": "low",
+    "status": "warning", "confidence": "unverified", "verification_status": "unverified",
+    "title": "El sitio no pudo evaluarse: hay una página de verificación anti-bot delante",
+    "finding": "El servidor entrega una página de verificación anti-bot.",
+    "business_impact": "Este informe no describe la postura del sitio.",
+    "recommendation": "Requiere modo auditoría con el escáner en lista blanca.",
+    "evidence": "HTTP 200, título 'Un momento…'", "references": [],
+}
+
+
+def _scan_with_notice() -> dict:
+    modules = {**_SAMPLE_SCAN_RESULT["modules"]}
+    modules["vuln_identification"] = [*modules["vuln_identification"], _COVERAGE_NOTICE]
+    return {**_SAMPLE_SCAN_RESULT, "modules": modules}
+
+
+def test_coverage_notice_is_surfaced_and_kept_out_of_the_finding_totals():
+    """El aviso encabeza el resumen ejecutivo, pero no es un hallazgo del
+    objetivo: contarlo entre los hallazgos inflaría el total y le atribuiría al
+    cliente un problema que es una limitación de la medición."""
+    ctx = build_report_context(_scan_with_notice(), _SAMPLE_RISK)
+
+    assert ctx["coverage_notice"]["id"].startswith("scan_blocked_by_interstitial")
+    assert ctx["total_findings"] == 2  # los mismos que sin el aviso
+    assert not any(f["id"].startswith("scan_blocked") for f in ctx["all_findings"])
+
+
+def test_report_without_interstitial_has_no_coverage_notice():
+    assert build_report_context(_SAMPLE_SCAN_RESULT, _SAMPLE_RISK)["coverage_notice"] is None
+
+
+def test_coverage_notice_is_rendered_in_the_executive_summary():
+    html = render_html(build_report_context(_scan_with_notice(), _SAMPLE_RISK))
+    assert "COBERTURA INCOMPLETA" in html
+    assert "página de verificación anti-bot" in html
+
+
 @pytest.mark.integration
 def test_export_pdf_writes_file(tmp_path):
     """Requiere las librerías nativas de WeasyPrint (Pango/Cairo/GObject) —

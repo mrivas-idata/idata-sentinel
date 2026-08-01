@@ -3,6 +3,11 @@ from __future__ import annotations
 
 import re
 
+from idata_sentinel.core.baseline import (
+    compare_headers,
+    for_context as _compiled_baseline,
+    redact_value as _redact,
+)
 from idata_sentinel.core.check_base import BaseCheck, CheckResult
 from idata_sentinel.modules.vuln_identification.context import ScanContext
 
@@ -33,10 +38,41 @@ class HttpHeadersCheck(BaseCheck):
                     )
                 continue
             out.extend(self._evaluate(outcome.response, path, ctx))
+            out.extend(self._baseline_mismatches(outcome.response, path, ctx))
         return out
 
     def _suffixed(self, base: str, path: str) -> str:
         return base if path == "/" else f"{base}@{path}"
+
+    def _baseline_mismatches(self, resp, path: str, ctx: ScanContext) -> list[CheckResult]:
+        """Desviaciones respecto del baseline de hardening acordado (plan activo §5).
+
+        Solo aplica si el cliente entregó un baseline. La severidad la fija el
+        baseline, no el check; `confidence="confirmed"` porque cruza dos señales
+        independientes: lo observado y lo acordado por escrito.
+        """
+        baseline = _compiled_baseline(ctx)
+        if baseline is None:
+            return []
+        rules = baseline.header_rules(path)
+        if not rules:
+            return []
+        out: list[CheckResult] = []
+        for m in compare_headers(resp.headers, rules):
+            out.append(self._result(
+                sub_id=self._suffixed(f"header_baseline_mismatch_{m.key}", path),
+                severity=m.expected.severity, likelihood="medium", status="fail",
+                confidence="confirmed",
+                title=f"Configuración fuera del baseline acordado: {m.key}",
+                finding=(
+                    f"El baseline v{baseline.version} exige {m.expected.describe()} en {path}; "
+                    f"el servidor entrega {(_redact(m.got))!r}."
+                ),
+                business_impact="Desviación respecto del estándar de hardening comprometido con el cliente.",
+                recommendation=f"Ajustar {m.key} en {path} conforme al baseline acordado.",
+                evidence=_redact(m.got) or "(ausente)", references=("baseline",),
+            ))
+        return out
 
     def _evaluate(self, resp, path: str, ctx: ScanContext) -> list[CheckResult]:
         h = resp.headers

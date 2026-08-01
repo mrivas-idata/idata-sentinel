@@ -42,18 +42,60 @@ class CookiesCheck(BaseCheck):
 
     async def run(self, ctx: ScanContext) -> list[CheckResult]:
         out: list[CheckResult] = []
-        targets = ctx.audit_targets()
+        # Rutas públicas: petición anónima. Endpoints declarados por el cliente:
+        # petición con la sesión provista (§6.5) para ver las cookies de sesión
+        # reales —las de mayor impacto—. Sin sesión, `authenticated=True` es inocuo.
+        anon_targets = ctx.audit_targets()
+        auth_targets: tuple[str, ...] = ()
         if ctx.mode == "audit" and ctx.authorized:
-            targets = tuple(dict.fromkeys((*targets, *ctx.audit_endpoints)))
+            auth_targets = tuple(e for e in ctx.audit_endpoints if e not in anon_targets)
 
-        for path in targets:
-            outcome = await ctx.get_outcome(path)
+        for path, authenticated in (
+            *((p, False) for p in anon_targets),
+            *((p, True) for p in auth_targets),
+        ):
+            outcome = await ctx.get_outcome(path, authenticated=authenticated)
             if not outcome.ok:
                 continue
-            raw_cookies = outcome.response.headers.get_list("set-cookie")
-            for raw in raw_cookies:
-                out.extend(self._evaluate(_parse_setcookie(raw), path, outcome.response.url.scheme))
+            for raw in outcome.response.headers.get_list("set-cookie"):
+                cookie = _parse_setcookie(raw)
+                out.extend(self._evaluate(cookie, path, outcome.response.url.scheme))
+                out.extend(self._baseline_mismatch(cookie, path, ctx))
         return out
+
+    def _baseline_mismatch(self, cookie: _ParsedCookie, path: str, ctx: ScanContext) -> list[CheckResult]:
+        """Compara los flags de la cookie contra la política de cookies acordada
+        en el baseline (plan activo §5). Severidad heredada del baseline."""
+        from idata_sentinel.core.baseline import for_context
+
+        baseline = for_context(ctx)
+        if baseline is None:
+            return []
+        policy = baseline.cookie_policy(path)
+        if policy is None:
+            return []
+        missing: list[str] = []
+        if policy.require_secure and "secure" not in cookie.flags:
+            missing.append("Secure")
+        if policy.require_httponly and "httponly" not in cookie.flags:
+            missing.append("HttpOnly")
+        if policy.require_samesite and "samesite" not in cookie.attrs:
+            missing.append("SameSite")
+        if not missing:
+            return []
+        suffix = f"@{cookie.name}" if path == "/" else f"@{cookie.name}{path}"
+        return [self._result(
+            sub_id=f"cookie_baseline_mismatch{suffix}",
+            severity=policy.severity, likelihood="medium", status="fail", confidence="confirmed",
+            title=f"Cookie '{cookie.name}' fuera del baseline acordado",
+            finding=(
+                f"El baseline v{baseline.version} exige {', '.join(missing)} en las cookies de "
+                f"{path}; la cookie '{cookie.name}' no lo cumple."
+            ),
+            business_impact="Las cookies no cumplen el estándar de hardening comprometido con el cliente.",
+            recommendation=f"Agregar {', '.join(missing)} a la cookie '{cookie.name}'.",
+            evidence=cookie.name, references=("baseline",),
+        )]
 
     def _evaluate(self, cookie: _ParsedCookie, path: str, scheme: str) -> list[CheckResult]:
         out: list[CheckResult] = []

@@ -14,8 +14,10 @@ from urllib.parse import urlparse
 from idata_sentinel.core.authorization import AuthorizationGate, AuthorizationRequest
 from idata_sentinel.core.dns_resolver import DnsResolver
 from idata_sentinel.core.http_client import FetchOutcome, HttpClient
+from idata_sentinel.core.interstitial import InterstitialSignal, detect_interstitial
 from idata_sentinel.core.rate_limiter import RateLimiter
 from idata_sentinel.core.robots import RobotsPolicy
+from idata_sentinel.core.session import ClientSession
 
 
 @dataclass
@@ -32,6 +34,16 @@ class RunParams:
     #: política del modo pasivo y varios módulos la necesitan.
     robots: RobotsPolicy | None = None
     robots_outcome: FetchOutcome | None = None
+    #: La raíz también se pide una sola vez: la necesitan el Módulo 1 y el 3, y
+    #: es donde se detecta el intersticial anti-bot que decide si el contenido
+    #: observado es siquiera el del objetivo.
+    root_outcome: FetchOutcome | None = None
+    interstitial: InterstitialSignal | None = None
+    #: Gate de activación de capacidades activas (plan activo §4) y sesión
+    #: provista por el cliente (§7). Defaults seguros: nada activo, sin sesión.
+    active_checks: frozenset[str] = field(default_factory=frozenset)
+    active_acknowledged: bool = False
+    client_session: ClientSession | None = None
     #: Hallazgos de los módulos ya ejecutados. El Módulo 3 los necesita para
     #: mapear la seguridad del tratamiento (evidenciada por el Módulo 1) al
     #: checklist de la Ley 21.719.
@@ -79,6 +91,11 @@ class ScanRequest:
     modules: list[str] | None = None  # None = todos los módulos registrados
     authorization: AuthorizationRequest | None = None
     source_ip: str = "unknown"
+    #: Capacidades activas pedidas por nombre (plan activo §4). Vacío = ninguna:
+    #: el modo audit sin esto solo expande superficie, no ejecuta técnicas activas.
+    active_checks: frozenset[str] = field(default_factory=frozenset)
+    active_acknowledged: bool = False  # doble confirmación (--i-understand-active)
+    client_session: ClientSession | None = None  # sesión provista (§7)
 
 
 class Engine:
@@ -99,10 +116,18 @@ class Engine:
                 mode = "passive"  # sin datos de autorización, nunca corre activo
             else:
                 authorized = self.authorization_gate.authorize(
-                    request.authorization, source_ip=request.source_ip
+                    request.authorization,
+                    source_ip=request.source_ip,
+                    active_context=self._active_context(request),
                 )
                 if not authorized:
                     mode = "passive"  # degradar, nunca abortar sin dejar registro
+
+        # Defensa en profundidad: si no quedó como audit autorizado, ninguna
+        # capacidad activa ni sesión sobrevive — el modo pasivo jamás las ve.
+        active_checks = request.active_checks if (mode == "audit" and authorized) else frozenset()
+        active_acknowledged = request.active_acknowledged if (mode == "audit" and authorized) else False
+        client_session = request.client_session if (mode == "audit" and authorized) else None
 
         host = urlparse(request.target).hostname or request.target
 
@@ -119,6 +144,7 @@ class Engine:
 
         async with HttpClient() as http:
             robots, robots_outcome = await self._fetch_robots(request.target, host, http)
+            root_outcome = await self._fetch_root(request.target, host, http)
             params = RunParams(
                 target=request.target,
                 host=host,
@@ -130,6 +156,11 @@ class Engine:
                 dns=DnsResolver(),
                 robots=robots,
                 robots_outcome=robots_outcome,
+                root_outcome=root_outcome,
+                interstitial=detect_interstitial(root_outcome.response),
+                active_checks=active_checks,
+                active_acknowledged=active_acknowledged,
+                client_session=client_session,
             )
             for module in selected:
                 params.previous_findings = list(accumulated)
@@ -159,3 +190,17 @@ class Engine:
             else RobotsPolicy.empty()
         )
         return policy, outcome
+
+    async def _fetch_root(self, target: str, host: str, http: HttpClient) -> FetchOutcome:
+        await self.rate_limiter.wait(host)
+        return await http.get(target, follow_redirects=True)
+
+    @staticmethod
+    def _active_context(request: ScanRequest) -> dict:
+        """Contexto activo para el `audit_log`: qué técnicas se pidieron, si se
+        confirmaron y si hubo sesión. Nunca incluye el material de la sesión."""
+        return {
+            "active_checks_enabled": sorted(request.active_checks),
+            "active_acknowledged": request.active_acknowledged,
+            "authenticated_scan": request.client_session is not None,
+        }

@@ -1,0 +1,54 @@
+# Baseline de hardening acordado con el cliente (plan_implementacion_escaneo_activo.md §5).
+#
+# Es el estándar de configuración que el cliente ACEPTÓ y contra el cual quiere ser
+# medido. Se versiona junto al contrato: la versión y su hash quedan en el
+# audit_log como evidencia de contra-qué-se-midió.
+#
+# Se entrega en modo `audit` (el engine lo carga en ScanContext.hardening_baseline).
+# La comparación es puramente de lectura sobre lo que el servidor ya respondió:
+# `must_match` es una regex de VALIDACIÓN del valor observado, jamás de ataque.
+#
+# Reglas de fusión:
+#   - `defaults` aplica a toda ruta.
+#   - `paths.<ruta>` sobrescribe `defaults` por clave (fusión superficial): la
+#     regla de la ruta gana, el resto de defaults sigue vigente.
+#   - La `severity` de cada desviación la fija el baseline (no el check): HSTS
+#     débil en /checkout puede ser `critical` y en /blog apenas `low`.
+#
+# Este archivo es el ESQUEMA de referencia. El baseline real de cada cliente es
+# otro YAML con la misma forma, versionado con su contrato.
+
+version: 1
+
+defaults:
+  headers:
+    strict-transport-security:
+      required: true
+      # >= 2 años (63072000). Solo valida el valor ya recibido.
+      must_match: "max-age=(6307[2-9][0-9]{3}|[7-9][0-9]{7,})"
+      severity: high
+    content-security-policy:
+      required: true
+      severity: medium
+    x-frame-options:
+      required: true
+      severity: medium
+  tls:
+    min_version: "TLSv1.2"
+    severity: high
+  cookies:
+    require_secure: true
+    require_httponly: true
+    require_samesite: true
+    severity: medium
+
+paths:
+  # Override más estricto para una ruta crítica.
+  /checkout:
+    headers:
+      strict-transport-security:
+        required: true
+        severity: critical
+    methods:
+      allowed: ["GET", "POST", "OPTIONS"]   # cualquier otro método anunciado => mismatch
+      severity: high

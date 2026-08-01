@@ -76,6 +76,12 @@ class HttpClient:
             max_redirects=MAX_REDIRECTS,
         )
 
+    #: Métodos que el escáner tiene permitido emitir contra un objetivo. Son
+    #: exclusivamente de **lectura**: ningún modo —ni el activo— puede mutar
+    #: estado en el objetivo (plan activo §1). `post()` es aparte y solo para
+    #: notificaciones salientes propias (webhooks), nunca contra un objetivo.
+    READ_ONLY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
     async def get(
         self,
         url: str,
@@ -84,6 +90,33 @@ class HttpClient:
         follow_redirects: bool = True,
         timeout: float | None = None,
     ) -> FetchOutcome:
+        return await self.request(
+            url, method="GET", headers=headers,
+            follow_redirects=follow_redirects, timeout=timeout,
+        )
+
+    async def request(
+        self,
+        url: str,
+        *,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+        follow_redirects: bool = True,
+        timeout: float | None = None,
+    ) -> FetchOutcome:
+        """Petición HTTP de solo lectura. Nunca lanza: devuelve éxito o el motivo.
+
+        Un método fuera de `READ_ONLY_METHODS` es un error de programación —el
+        contrato del proyecto prohíbe mutar estado en el objetivo—, así que se
+        rechaza en vez de emitirse.
+        """
+        method = method.upper()
+        if method not in self.READ_ONLY_METHODS:
+            raise ValueError(
+                f"Método {method!r} no permitido contra un objetivo: solo "
+                f"{sorted(self.READ_ONLY_METHODS)} (solo lectura, sin mutar estado)."
+            )
+
         host = urlparse(url).netloc
         count = self._request_counts.get(host, 0)
         if count >= self.max_requests_per_domain:
@@ -92,7 +125,8 @@ class HttpClient:
         self._request_counts[host] = count + 1
 
         try:
-            resp = await self._client.get(
+            resp = await self._client.request(
+                method,
                 url,
                 headers=headers,
                 follow_redirects=follow_redirects,

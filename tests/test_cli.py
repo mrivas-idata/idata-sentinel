@@ -111,6 +111,88 @@ def test_scan_rejects_an_invalid_mode():
     assert "Modo inválido" in result.stdout
 
 
+def test_active_check_requires_audit_mode():
+    result = runner.invoke(app, [
+        "scan", "https://cliente.test", "--active-check", "http_methods", "--rate-limit", "0",
+    ])
+    assert result.exit_code == 1
+    assert "solo corren en modo audit" in result.stdout
+
+
+def test_active_check_without_ack_aborts_and_logs(tmp_path, monkeypatch):
+    """Regresión del corazón del encargo: pedir activo sin confirmar ABORTA (no
+    degrada en silencio) y deja rastro en el audit_log."""
+    monkeypatch.chdir(tmp_path)
+    db = tmp_path / "cli.db"
+    result = runner.invoke(app, [
+        "scan", "https://cliente.test", "--mode", "audit",
+        "--i-have-authorization", "--authorized-by", "Ana, CISO", "--contract", "OC-1",
+        "--allowed-domain", "cliente.test",
+        "--active-check", "http_methods",   # sin --i-understand-active
+        "--db", str(db), "--rate-limit", "0",
+    ])
+    assert result.exit_code == 1
+    assert "falta la confirmación" in result.stdout
+
+    log = (tmp_path / "audit_log.json").read_text(encoding="utf-8")
+    entry = json.loads(log.strip().splitlines()[-1])
+    assert entry["decision"] == "denied_active_unacknowledged"
+    assert entry["active_checks_enabled"] == ["http_methods"]
+
+
+@respx.mock
+def test_active_scan_end_to_end_runs_named_check_and_reports(tmp_path, monkeypatch):
+    """End-to-end del modo activo: audit autorizado + --active-check nombrado +
+    doble confirmación → la técnica activa corre y su hallazgo llega al JSON."""
+    monkeypatch.chdir(tmp_path)
+    _mock_target()
+    # OPTIONS a la raíz anuncia TRACE → hallazgo activo http_trace_enabled.
+    respx.route(method="OPTIONS", url="https://cliente.test/").mock(
+        return_value=httpx.Response(200, headers={"Allow": "GET, OPTIONS, TRACE"}))
+    out = tmp_path / "activo.json"
+
+    result = runner.invoke(app, [
+        "scan", "https://cliente.test", "--mode", "audit", "--modules", "vuln",
+        "--i-have-authorization", "--authorized-by", "Ana, CISO", "--contract", "OC-9",
+        "--allowed-domain", "cliente.test",
+        "--active-check", "http_methods", "--i-understand-active",
+        "--rate-limit", "0", "--json", str(out),
+    ])
+
+    assert result.exit_code == 0, result.stdout
+    assert "Técnicas activas que se ejecutarán" in result.stdout
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    ids = {f["id"].split("@")[0] for f in payload["modules"]["vuln_identification"]}
+    assert "http_trace_enabled" in ids
+
+    # La autorización y el alcance activo quedaron registrados.
+    log = (tmp_path / "audit_log.json").read_text(encoding="utf-8")
+    entry = json.loads(log.strip().splitlines()[-1])
+    assert entry["decision"] == "granted"
+    assert entry["active_checks_enabled"] == ["http_methods"]
+
+
+@respx.mock
+def test_audit_without_active_check_stays_passive_in_behaviour(tmp_path, monkeypatch):
+    """El modo audit SIN --active-check no ejecuta ninguna técnica activa."""
+    monkeypatch.chdir(tmp_path)
+    _mock_target()
+    options_route = respx.route(method="OPTIONS", url__regex=r"https://cliente\.test.*").mock(
+        return_value=httpx.Response(200, headers={"Allow": "TRACE"}))
+    out = tmp_path / "sin-activo.json"
+
+    runner.invoke(app, [
+        "scan", "https://cliente.test", "--mode", "audit", "--modules", "vuln",
+        "--i-have-authorization", "--authorized-by", "Ana", "--contract", "OC-9",
+        "--allowed-domain", "cliente.test", "--rate-limit", "0", "--json", str(out),
+    ])
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    ids = {f["id"].split("@")[0] for f in payload["modules"]["vuln_identification"]}
+    assert "http_trace_enabled" not in ids   # ninguna técnica activa corrió
+    assert not options_route.called          # ni siquiera se emitió el OPTIONS
+
+
 @respx.mock
 def test_scan_prints_score_and_findings():
     _mock_target()

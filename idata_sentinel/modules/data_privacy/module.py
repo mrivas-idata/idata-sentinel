@@ -35,7 +35,10 @@ class DataPrivacyModule:
             audit_paths=authorization.audit_paths if authorization else (),
             audit_endpoints=authorization.audit_endpoints if authorization else (),
             robots=params.robots or RobotsPolicy.empty(),
+            interstitial=params.interstitial,
         )
+        if params.root_outcome is not None:
+            ctx.seed_cache("/", params.root_outcome)
 
         checks = checks_for_mode(ctx.mode)
         gathered = await asyncio.gather(*(self._safe_run(c, ctx) for c in checks))
@@ -49,6 +52,13 @@ class DataPrivacyModule:
         return ModuleOutput(findings=findings, artifacts={"compliance_21719": checklist})
 
     async def _safe_run(self, check, ctx: ScanContext) -> list[CheckResult]:
+        # Todo el Módulo 3 se deduce del HTML: formularios, banner de
+        # consentimiento, enlace a la política. Sobre una página de verificación
+        # anti-bot los tres checks fallarían en falso a la vez, y
+        # `privacy_policy_missing` es severidad `high` — el peor hallazgo falso
+        # posible para mandarle a un prospecto.
+        if ctx.interstitial is not None and check.content_dependent:
+            return [check._interstitial_result(ctx.interstitial)]
         try:
             return await check.run(ctx)
         except Exception as e:  # un check nunca tumba el módulo

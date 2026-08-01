@@ -49,15 +49,33 @@ class AuditLogger:
 
     path: Path = field(default_factory=lambda: Path("audit_log.json"))
 
-    def record(self, *, target: str, decision: str, request: AuthorizationRequest | None, source_ip: str) -> None:
+    def record(
+        self,
+        *,
+        target: str,
+        decision: str,
+        request: AuthorizationRequest | None,
+        source_ip: str,
+        active_context: dict | None = None,
+    ) -> None:
         entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "target": target,
-            "decision": decision,  # "granted" | "denied_incomplete" | "denied_out_of_scope"
+            # "granted" | "denied_incomplete" | "denied_out_of_scope"
+            # | "denied_active_unacknowledged"
+            "decision": decision,
             "authorized_by": request.authorized_by if request else None,
             "contract_reference": request.contract_reference if request else None,
             "source_ip": source_ip,
         }
+        # La auditoría activa amplía la evidencia, nunca la reduce (plan activo §8).
+        # El material de sesión JAMÁS entra al log: solo el booleano.
+        if active_context:
+            entry["active_checks_enabled"] = active_context.get("active_checks_enabled", [])
+            entry["active_acknowledged"] = active_context.get("active_acknowledged", False)
+            entry["authenticated_scan"] = active_context.get("authenticated_scan", False)
+            if "baseline_version" in active_context:
+                entry["baseline_version"] = active_context["baseline_version"]
         with self.path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
@@ -68,22 +86,31 @@ class AuthorizationGate:
     def __init__(self, audit_logger: AuditLogger | None = None) -> None:
         self.audit_logger = audit_logger or AuditLogger()
 
-    def authorize(self, request: AuthorizationRequest, *, source_ip: str = "unknown") -> bool:
+    def authorize(
+        self,
+        request: AuthorizationRequest,
+        *,
+        source_ip: str = "unknown",
+        active_context: dict | None = None,
+    ) -> bool:
         host = urlparse(request.target).hostname or request.target
 
         if not request.is_complete():
             self.audit_logger.record(
-                target=request.target, decision="denied_incomplete", request=request, source_ip=source_ip
+                target=request.target, decision="denied_incomplete", request=request,
+                source_ip=source_ip, active_context=active_context,
             )
             return False
 
         if not _domain_in_scope(host, request.allowed_domains):
             self.audit_logger.record(
-                target=request.target, decision="denied_out_of_scope", request=request, source_ip=source_ip
+                target=request.target, decision="denied_out_of_scope", request=request,
+                source_ip=source_ip, active_context=active_context,
             )
             return False
 
         self.audit_logger.record(
-            target=request.target, decision="granted", request=request, source_ip=source_ip
+            target=request.target, decision="granted", request=request,
+            source_ip=source_ip, active_context=active_context,
         )
         return True
