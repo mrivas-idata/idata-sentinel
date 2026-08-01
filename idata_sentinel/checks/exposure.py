@@ -27,6 +27,11 @@ _SENSITIVE_FILES = (
     # (ruta, firma que valida el contenido)
     ("/.env", re.compile(r"^\s*(?:[A-Z][A-Z0-9_]*\s*=|#)", re.MULTILINE)),
     ("/.git/HEAD", re.compile(r"^\s*(?:ref:\s|[0-9a-f]{40})")),
+    # `/.git/config` es la segunda señal del mismo problema y la que lo confirma:
+    # si además de HEAD responde el config, no hay un archivo suelto mal servido
+    # sino el directorio `.git` completo publicado. Es ruta canónica conocida,
+    # no fuzzing (§2.5).
+    ("/.git/config", re.compile(r"^\s*\[(?:core|remote|branch)\b", re.MULTILINE)),
 )
 _HTML_SIGNATURE = re.compile(r"<(?:!doctype\s+html|html\b|head\b|body\b)", re.IGNORECASE)
 
@@ -70,17 +75,23 @@ class ExposureCheck(BaseCheck):
         if _HTML_SIGNATURE.search(body[:500]) or not signature.search(body):
             return []
 
-        # 'medium', no 'low': un .env o un repositorio git accesibles son de las
-        # fugas más explotables que existen.
+        # `critical`, no `medium`: aquí no hay nada que deducir ni explotar
+        # después — el archivo ya está publicado y su contenido confirmado. Un
+        # `.git` servido permite reconstruir el código fuente y todo el
+        # historial, incluidas credenciales que hayan pasado por cualquier
+        # commit; un `.env`, las credenciales directamente. `likelihood=high`
+        # porque no requiere condiciones: basta con pedir la URL.
         return [self._result(
             sub_id=f"sensitive_file_exposed{path.replace('/', '_')}",
-            severity="medium", likelihood="medium", status="fail",
+            severity="critical", likelihood="high", status="fail",
             title=f"Archivo sensible accesible: {path}",
             finding=f"{path} responde 200 y su contenido coincide con el del archivo real.",
             business_impact=(
                 "Un archivo de configuración o de control de versiones expuesto suele "
                 "contener credenciales, claves de API o la estructura interna del proyecto: "
-                "es material de ataque directo."
+                "es material de ataque directo, sin explotación previa. En el caso de un "
+                "repositorio git publicado, el código fuente y su historial completo son "
+                "recuperables por cualquiera."
             ),
             recommendation=f"Bloquear el acceso público a {path} en el servidor web.",
             evidence=body[:200], references=("CWE-538",),

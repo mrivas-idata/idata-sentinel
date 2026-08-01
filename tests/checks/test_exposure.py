@@ -14,13 +14,18 @@ def _ids(results) -> set[str]:
     return {r.id.split("@")[0] for r in results}
 
 
-def _mock(root_body: str = "<html></html>", *, env=None, git=None) -> None:
+def _mock(root_body: str = "<html></html>", *, env=None, git=None, git_config=None) -> None:
     respx.get(ROOT).mock(return_value=httpx.Response(200, text=root_body))
     respx.get("https://example.test/.env").mock(
         return_value=httpx.Response(200, text=env) if env is not None else httpx.Response(404)
     )
     respx.get("https://example.test/.git/HEAD").mock(
         return_value=httpx.Response(200, text=git) if git is not None else httpx.Response(404)
+    )
+    respx.get("https://example.test/.git/config").mock(
+        return_value=httpx.Response(200, text=git_config)
+        if git_config is not None
+        else httpx.Response(404)
     )
 
 
@@ -36,12 +41,15 @@ async def test_spa_serving_index_html_for_dot_env_is_not_a_finding(make_ctx):
 
 
 @respx.mock
-async def test_a_real_dot_env_is_reported_as_medium(make_ctx):
+async def test_a_real_dot_env_is_reported_as_critical(make_ctx):
+    """`critical`, no `medium`: el archivo ya está publicado y su contenido
+    confirmado — no queda explotación intermedia que suponer, las credenciales
+    se leen pidiendo la URL."""
     _mock(env="DB_PASSWORD=super-secreto\nAPI_KEY=abc123\n")
     results = await ExposureCheck().run(make_ctx())
 
     finding = next(r for r in results if r.id.startswith("sensitive_file_exposed_.env"))
-    assert finding.severity == "medium"
+    assert (finding.severity, finding.likelihood) == ("critical", "high")
     assert finding.status == "fail"
 
 
@@ -49,6 +57,24 @@ async def test_a_real_dot_env_is_reported_as_medium(make_ctx):
 async def test_a_real_git_head_is_reported(make_ctx):
     _mock(git="ref: refs/heads/main\n")
     assert "sensitive_file_exposed_.git_HEAD" in _ids(await ExposureCheck().run(make_ctx()))
+
+
+@respx.mock
+async def test_an_exposed_git_config_is_reported(make_ctx):
+    """La segunda señal del mismo problema: si además de HEAD responde el config,
+    lo publicado no es un archivo suelto sino el directorio `.git` entero."""
+    _mock(git_config='[core]\n\trepositoryformatversion = 0\n[remote "origin"]\n\turl = https://gitlab.com/x/y.git\n')
+    results = await ExposureCheck().run(make_ctx())
+
+    finding = next(r for r in results if r.id.startswith("sensitive_file_exposed_.git_config"))
+    assert finding.severity == "critical"
+
+
+@respx.mock
+async def test_html_served_for_git_config_is_not_a_finding(make_ctx):
+    """Mismo falso positivo del SPA, en la ruta nueva."""
+    _mock(git_config="<!DOCTYPE html><html><body>404</body></html>")
+    assert "sensitive_file_exposed_.git_config" not in _ids(await ExposureCheck().run(make_ctx()))
 
 
 @respx.mock
@@ -111,6 +137,7 @@ async def test_debug_header_is_flagged(make_ctx):
     respx.get(ROOT).mock(return_value=httpx.Response(200, headers={"X-Debug": "on"}, text="<html></html>"))
     respx.get("https://example.test/.env").mock(return_value=httpx.Response(404))
     respx.get("https://example.test/.git/HEAD").mock(return_value=httpx.Response(404))
+    respx.get("https://example.test/.git/config").mock(return_value=httpx.Response(404))
     assert "metadata_exposed_xdebug" in _ids(await ExposureCheck().run(make_ctx()))
 
 
@@ -140,6 +167,7 @@ async def test_unreachable_target_produces_nothing(make_ctx):
     respx.get(ROOT).mock(side_effect=httpx.ConnectError("caído"))
     respx.get("https://example.test/.env").mock(side_effect=httpx.ConnectError("caído"))
     respx.get("https://example.test/.git/HEAD").mock(side_effect=httpx.ConnectError("caído"))
+    respx.get("https://example.test/.git/config").mock(side_effect=httpx.ConnectError("caído"))
     assert await ExposureCheck().run(make_ctx()) == []
 
 
