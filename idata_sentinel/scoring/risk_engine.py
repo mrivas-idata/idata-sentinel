@@ -49,11 +49,38 @@ def _finding_weight(finding: dict, weights: dict) -> float:
     return severity_weight * likelihood_mult
 
 
+def _actionable(findings: list[dict]) -> list[dict]:
+    """Hallazgos que penalizan: accionables **y** efectivamente medidos.
+
+    Un resultado `unverified` no afirma nada sobre el objetivo (ver
+    `check_base.CheckResult.is_measured`), así que no puede bajar la nota: un
+    intersticial anti-bot o un timeout de DNS no son problemas del cliente.
+    """
+    return [
+        f
+        for f in findings
+        if f["status"] in ("fail", "warning") and f.get("confidence") != "unverified"
+    ]
+
+
+def _severity_cap(actionable: list[dict], weights: dict) -> int:
+    caps = weights.get("severity_caps") or {}
+    present = {f["severity"] for f in actionable}
+    applicable = [cap for severity, cap in caps.items() if severity in present]
+    return min(applicable, default=100)
+
+
 def _score_from_findings(findings: list[dict], weights: dict) -> int:
-    if not findings:
+    actionable = _actionable(findings)
+    if not actionable:
         return 100
-    penalty = sum(_finding_weight(f, weights) for f in findings if f["status"] in ("fail", "warning"))
-    return max(0, round(100 - penalty))
+
+    decay = weights.get("accumulation_decay", 1.0)
+    ordered = sorted((_finding_weight(f, weights) for f in actionable), reverse=True)
+    penalty = sum(weight * (decay**position) for position, weight in enumerate(ordered))
+
+    score = max(0, round(100 - penalty))
+    return min(score, _severity_cap(actionable, weights))
 
 
 def calculate(results_by_module: dict[str, list[dict]]) -> RiskScore:

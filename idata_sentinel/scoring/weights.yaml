@@ -11,3 +11,24 @@ likelihood_multipliers:
   high: 1.0
   medium: 0.7
   low: 0.4
+
+# Retorno decreciente sobre la acumulación de hallazgos.
+#
+# Sumar linealmente todos los pesos tenía dos efectos indeseados: el score global
+# quedaba siempre por debajo del peor subscore de módulo (porque sumaba las
+# penalizaciones de todos), y por tanto **empeoraba solo por correr más módulos**.
+# En la práctica todos los escaneos reales daban F, y una nota que siempre dice lo
+# mismo no informa nada — menos aún siendo el titular del resumen ejecutivo (§8.2).
+#
+# Con retorno decreciente los hallazgos se ordenan por peso y el k-ésimo aporta
+# `peso × decay^(k-1)`: los peores dominan la nota y una cola larga de hallazgos
+# `low` ya no equivale a un `critical`. 1.0 restaura la suma lineal anterior.
+accumulation_decay: 0.75
+
+# Techo de nota según la peor severidad observada, para que el retorno decreciente
+# no acabe indultando un hallazgo grave aislado: un certificado vencido debe
+# reprobar aunque sea el único hallazgo del escaneo.
+severity_caps:
+  critical: 59  # F
+  high: 74      # C
+  medium: 89    # B
