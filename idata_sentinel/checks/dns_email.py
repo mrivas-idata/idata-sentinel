@@ -19,6 +19,20 @@ _SPF_LOOKUP_LIMIT = 10
 _ALL_QUALIFIER = re.compile(r"([-~?+])all\b", re.IGNORECASE)
 _DMARC_POLICY = re.compile(r"\bp\s*=\s*(none|quarantine|reject)\b", re.IGNORECASE)
 
+#: Dominios de los buzones de reportes DMARC **por defecto** de proveedores de
+#: hosting/registro. Cuando el `rua` apunta aquí, los informes agregados los
+#: recibe el proveedor y no el titular del dominio: la política puede estar
+#: activa, pero el dueño no ve quién lo suplanta.
+#:
+#: Ojo: un `rua` a un dominio externo es legítimo cuando se usa una plataforma de
+#: análisis DMARC (dmarcian, EasyDMARC, etc.) contratada por el titular. Por eso
+#: sólo se marcan los buzones *por defecto* del proveedor —el caso "lo dejó el
+#: asistente del registrador y nadie lo cambió"—, no cualquier destino externo.
+_DMARC_DEFAULT_PROVIDERS = {
+    "onsecureserver.net": "GoDaddy",
+    "secureserver.net": "GoDaddy",
+}
+
 
 def find_spf(txt_records: tuple[str, ...]) -> str | None:
     for record in txt_records:
@@ -54,6 +68,37 @@ def find_dmarc(txt_records: tuple[str, ...]) -> str | None:
 def dmarc_policy(dmarc: str) -> str:
     match = _DMARC_POLICY.search(dmarc)
     return match.group(1).lower() if match else "none"
+
+
+def dmarc_addresses(dmarc: str, tag: str = "rua") -> list[str]:
+    """Direcciones declaradas en un tag `rua=`/`ruf=` del registro DMARC.
+
+    Formato RFC 7489 §6.3: `rua=mailto:a@x.com,mailto:b@y.com!10m` —
+    separadas por coma, con prefijo `mailto:` y un sufijo opcional de tamaño `!…`.
+    """
+    match = re.search(rf"\b{tag}\s*=\s*([^;]+)", dmarc, re.IGNORECASE)
+    if not match:
+        return []
+    addresses: list[str] = []
+    for part in match.group(1).split(","):
+        part = part.strip()
+        if part.lower().startswith("mailto:"):
+            part = part[len("mailto:") :]
+        part = part.split("!", 1)[0].strip()  # descarta el límite de tamaño
+        if part:
+            addresses.append(part)
+    return addresses
+
+
+def dmarc_rua_default_provider(dmarc: str) -> tuple[str, str] | None:
+    """Devuelve `(dirección, proveedor)` si algún `rua` apunta al buzón por
+    defecto de un proveedor conocido, o `None`."""
+    for address in dmarc_addresses(dmarc, "rua"):
+        domain = address.rsplit("@", 1)[-1].lower().strip() if "@" in address else ""
+        for suffix, provider in _DMARC_DEFAULT_PROVIDERS.items():
+            if domain == suffix or domain.endswith("." + suffix):
+                return address, provider
+    return None
 
 
 class DnsEmailCheck(BaseCheck):
@@ -186,7 +231,30 @@ class DnsEmailCheck(BaseCheck):
                 recommendation="Endurecer a 'p=quarantine' y luego 'p=reject' tras validar los flujos legítimos.",
                 evidence=dmarc[:200], references=("RFC 7489",),
             ))
-        if "rua=" not in dmarc.lower():
+        provider = dmarc_rua_default_provider(dmarc)
+        if provider is not None:
+            address, name = provider
+            out.append(self._result(
+                sub_id=f"dmarc_rua_default_provider@{host}",
+                severity="low", likelihood="medium", status="warning",
+                title=f"Los reportes DMARC de {host} van al buzón por defecto de {name}",
+                finding=(
+                    f"El registro DMARC envía los informes agregados a '{address}', la dirección "
+                    f"por defecto de {name}. Los reportes los recibe el proveedor, no el titular "
+                    f"del dominio."
+                ),
+                business_impact=(
+                    "Con la política DMARC activa pero el 'rua' apuntando al proveedor, el titular "
+                    "no recibe los informes: no tiene visibilidad de quién intenta suplantar el "
+                    "dominio ni puede medir el avance del despliegue. Se opera a ciegas."
+                ),
+                recommendation=(
+                    "Apuntar 'rua=' a un buzón propio monitoreado o a una plataforma de análisis "
+                    "DMARC bajo control del titular, para recuperar la visibilidad."
+                ),
+                evidence=dmarc[:200], references=("RFC 7489 §7",),
+            ))
+        elif "rua=" not in dmarc.lower():
             out.append(self._result(
                 sub_id=f"dmarc_no_reporting@{host}", severity="low", likelihood="low", status="warning",
                 title=f"DMARC sin dirección de reportes agregados en {host}",

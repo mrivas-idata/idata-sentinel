@@ -5,7 +5,9 @@ import pytest
 from idata_sentinel.checks.dns_email import (
     DnsEmailCheck,
     count_spf_lookups,
+    dmarc_addresses,
     dmarc_policy,
+    dmarc_rua_default_provider,
     find_dmarc,
     find_spf,
     spf_qualifier,
@@ -113,6 +115,50 @@ async def test_dmarc_reject_with_rua_is_clean(fake_dns):
         {(f"_dmarc.{HOST}", "TXT"): ("v=DMARC1; p=reject; rua=mailto:d@idata.test",)}, fake_dns
     )
     assert not {i for i in _ids(results) if i.startswith("dmarc_")}
+
+
+# -- rua a buzón por defecto del proveedor ---------------------------------
+
+
+def test_dmarc_addresses_parses_the_rua_tag():
+    dmarc = "v=DMARC1; p=quarantine; rua=mailto:a@x.com!10m,mailto:b@y.com; ruf=mailto:f@z.com"
+    assert dmarc_addresses(dmarc, "rua") == ["a@x.com", "b@y.com"]
+    assert dmarc_addresses(dmarc, "ruf") == ["f@z.com"]
+    assert dmarc_addresses("v=DMARC1; p=none") == []
+
+
+def test_dmarc_rua_default_provider_recognises_godaddy():
+    dmarc = "v=DMARC1; p=quarantine; rua=mailto:dmarc_rua@onsecureserver.net"
+    assert dmarc_rua_default_provider(dmarc) == ("dmarc_rua@onsecureserver.net", "GoDaddy")
+
+
+def test_dmarc_rua_to_own_mailbox_is_not_a_provider_default():
+    assert dmarc_rua_default_provider("v=DMARC1; p=reject; rua=mailto:dmarc@idata.test") is None
+
+
+def test_dmarc_rua_to_a_dmarc_saas_is_not_flagged():
+    """Un `rua` externo hacia una plataforma de análisis contratada por el titular
+    es legítimo: sólo se marcan los buzones *por defecto* del proveedor."""
+    assert dmarc_rua_default_provider("v=DMARC1; p=reject; rua=mailto:x@dmarcian.com") is None
+
+
+async def test_dmarc_rua_default_provider_is_flagged(fake_dns):
+    """Regresión del hallazgo real: p=quarantine pero rua al buzón por defecto de
+    GoDaddy — la política está activa pero el titular no ve los reportes."""
+    results = await _evaluate(
+        {(f"_dmarc.{HOST}", "TXT"): (
+            "v=DMARC1; p=quarantine; rua=mailto:dmarc_rua@onsecureserver.net",
+        )},
+        fake_dns,
+    )
+    ids = _ids(results)
+    finding = next(r for r in results if r.id.startswith("dmarc_rua_default_provider"))
+    assert finding.status == "warning"
+    assert "GoDaddy" in finding.title
+    # No debe además decir que falta rua: el rua existe, sólo apunta al lugar equivocado.
+    assert "dmarc_no_reporting" not in ids
+    # p=quarantine es endurecida: tampoco debe salir dmarc_policy_none.
+    assert "dmarc_policy_none" not in ids
 
 
 # -- MTA-STS / TLS-RPT -----------------------------------------------------
