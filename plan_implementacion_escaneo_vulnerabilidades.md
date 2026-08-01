@@ -298,10 +298,28 @@ tech = wappalyzer.analyze_with_versions(url=..., html=resp.text, headers=h)
 |---|---|---|---|---|
 | `tech_version_disclosure` | Se identifica producto **con versión** expuesta (CMS/framework/servidor) → `warning` | low | medium | Facilita reconocimiento dirigido |
 | `tech_detected` | Producto identificado sin versión → `info` | info | low | Inventario, sin hallazgo |
+| `component_version_disclosure` | Plugin/tema de WordPress **con versión** expuesta → `warning` | low | medium | Los componentes concentran la mayoría de los CVEs de un WP |
+
+**Componentes de WordPress (`detect_components`).** El fingerprint del CMS por sí
+solo no revela lo que importa: las vulnerabilidades de un sitio WordPress viven
+en sus plugins y temas, no en el core. `detect_components` los extrae del HTML
+**ya descargado** —cero requests extra— parseando los parámetros `?ver=` de las
+rutas `/wp-content/plugins|themes/<slug>/...`. Reglas:
+
+- Se exige `major.minor` (al menos un punto): los temas cachean con enteros
+  gigantes tipo `?ver=801499924`, que son cache-busters y no versiones. Tratarlos
+  como versión inventaría un componente falso.
+- Si un componente aparece con varias versiones, se reporta la **más alta** —la
+  más probable de estar instalada y la más conservadora para el cruce con CVE.
+- El `slug` (p.ej. `revslider`, `contact-form-7`) es la clave con la que la capa
+  CVE cruza el componente. Medido sobre un objetivo real, esto pasó de detectar
+  "WordPress 6.9.5" a detectar Slider Revolution 6.7.40, Contact Form 7 6.1.6 y
+  Uncode Privacy 2.3.0 — los componentes que de verdad cargan CVEs.
 
 **Capa CVE — estrictamente informativa (§0):**
 
-- Fuente: `data/cve_hints.yaml`, base **local, offline, curada a mano** que mapea `producto+rango_de_versión → [CVE-IDs, título, CVSS de referencia]`. **No** se consultan servicios online en tiempo de escaneo (evita depender de red y evita cualquier interpretación de "prueba activa"). El mantenimiento de este YAML es un proceso manual del equipo.
+- Fuente: `data/cve_hints.yaml`, base **local, offline, curada a mano** que mapea `producto+rango_de_versión → [CVE-IDs, título, CVSS de referencia]`. `producto` admite tanto el nombre del stack ("WordPress", "Apache") como el **slug** de un plugin/tema ("revslider", "contact-form-7"); la coincidencia no distingue mayúsculas. **No** se consultan servicios online en tiempo de escaneo (evita depender de red y evita cualquier interpretación de "prueba activa"). El mantenimiento de este YAML es un proceso manual del equipo.
+- **Estado actual: el archivo es placeholder.** Sus entradas son ejemplos para validar el pipeline, no CVEs reales. La detección de componentes ya alimenta la capa con los slugs y versiones correctos; falta que el equipo de seguridad de IDATA cure la lista con CVEs verificadas y sus rangos reales (NVD / GitHub Advisories) antes de usarla en un entregable. Publicar CVEs fabricados sería un falso positivo con peso legal, peor que no reportar ninguno.
 - Si la versión detectada cae en un rango con CVEs listadas:
 
 | id | status | severity | likelihood | Justificación |

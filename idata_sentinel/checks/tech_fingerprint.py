@@ -22,6 +22,46 @@ _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 class Detection:
     product: str
     version: str | None
+    #: "tech" para el stack base (CMS, servidor); "plugin"/"theme" para los
+    #: componentes de WordPress. Los componentes son donde viven la mayoría de
+    #: los CVEs de un sitio WP, y el CMS por sí solo no los revela.
+    kind: str = "tech"
+
+
+#: `/wp-content/plugins|themes/<slug>/...?ver=<x.y[.z]>` en el HTML ya descargado.
+#: Se exige `major.minor` (al menos un punto) a propósito: los temas cachean con
+#: enteros gigantes tipo `?ver=801499924`, que son cache-busters, no versiones.
+#: Tratarlos como versión produciría un "componente vX" falso.
+_WP_COMPONENT_RE = re.compile(
+    r"/wp-content/(plugins|themes)/([a-z0-9][a-z0-9._-]*)/[^\"'>\s]*?[?&]ver=(\d+(?:\.\d+)+)",
+    re.IGNORECASE,
+)
+
+
+def detect_components(resp) -> list[Detection]:
+    """Plugins y temas de WordPress con versión, leídos del HTML raíz.
+
+    Cero coste de red: parsea la respuesta que el fingerprint ya tiene. Cuando
+    un mismo componente aparece con varias versiones (assets de distintos
+    orígenes), se reporta la **más alta** — es la más probable de estar instalada
+    y la más conservadora para el cruce con CVE (menos CVEs abiertos)."""
+    best: dict[tuple[str, str], tuple[int, ...]] = {}
+    for match in _WP_COMPONENT_RE.finditer(resp.text or ""):
+        kind = "plugin" if match.group(1).lower() == "plugins" else "theme"
+        slug = match.group(2).lower()
+        version = match.group(3)
+        key = (kind, slug)
+        current = best.get(key)
+        candidate = _version_tuple(version)
+        if current is None or candidate > current:
+            best[key] = candidate
+
+    detections: list[Detection] = []
+    for (kind, slug), version_t in sorted(best.items()):
+        detections.append(
+            Detection(product=slug, version=".".join(str(p) for p in version_t), kind=kind)
+        )
+    return detections
 
 
 def _version_tuple(v: str) -> tuple[int, ...]:
@@ -116,6 +156,35 @@ class TechFingerprintCheck(BaseCheck):
         out: list[CheckResult] = []
         for detection in detect_technologies(outcome.response):
             out.extend(self._result_for_detection(detection))
+        for component in detect_components(outcome.response):
+            out.extend(self._result_for_component(component))
+        return out
+
+    def _result_for_component(self, d: Detection) -> list[CheckResult]:
+        """Un plugin/tema de WordPress con versión expuesta. La versión de un
+        componente es más accionable que la del CMS: es lo que un atacante cruza
+        contra CVEs de ese plugin concreto."""
+        kind_label = "plugin" if d.kind == "plugin" else "tema"
+        out = [self._result(
+            sub_id=f"component_version_disclosure@{d.kind}:{d.product}",
+            severity="low", likelihood="medium", status="warning",
+            title=f"Componente WordPress ({kind_label}) con versión expuesta: {d.product} {d.version}",
+            finding=(
+                f"El {kind_label} de WordPress '{d.product}' expone públicamente su versión "
+                f"{d.version} en las rutas de recursos del sitio."
+            ),
+            business_impact=(
+                "Los plugins y temas concentran la mayoría de las vulnerabilidades conocidas de "
+                "un WordPress. Publicar su versión exacta permite a un atacante buscar CVEs "
+                "específicas de ese componente sin tocar el sitio."
+            ),
+            recommendation=(
+                f"Mantener '{d.product}' actualizado y, si es posible, quitar el parámetro de "
+                f"versión de las URLs de recursos."
+            ),
+            evidence=f"wp-content/{d.kind}s/{d.product}/…?ver={d.version}", references=("CWE-200",),
+        )]
+        out.extend(self._cve_informational(d))
         return out
 
     def _result_for_detection(self, d: Detection) -> list[CheckResult]:
@@ -140,13 +209,16 @@ class TechFingerprintCheck(BaseCheck):
             ))
         return out
 
-    def _cve_informational(self, d: _Detection) -> list[CheckResult]:
+    def _cve_informational(self, d: Detection) -> list[CheckResult]:
         if not d.version:
             return []
         version_t = _version_tuple(d.version)
         out: list[CheckResult] = []
         for entry in _load_cve_hints():
-            if entry.get("product") != d.product:
+            # Coincidencia por producto/slug, sin distinguir mayúsculas: las
+            # entradas de componentes se curan con el slug ("revslider"), las de
+            # stack con el nombre ("WordPress").
+            if str(entry.get("product", "")).lower() != d.product.lower():
                 continue
             min_v = _version_tuple(str(entry.get("min_version", "0")))
             max_raw = entry.get("max_version")

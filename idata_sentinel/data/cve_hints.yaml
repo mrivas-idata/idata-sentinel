@@ -8,6 +8,14 @@
 # rangos de versión reales (fuente sugerida: NVD, GitHub Advisories).
 #
 # rango de versión: [min_version, max_version) — max_version null = sin tope conocido.
+#
+# `product` admite tanto stack base como componentes de WordPress:
+#   - stack:     nombre del producto tal cual lo emite el fingerprint ("WordPress",
+#                "Apache", "PHP", "Nginx").
+#   - componente: el *slug* del plugin/tema tal como aparece en la URL de recursos
+#                ("revslider", "contact-form-7", "uncode-privacy"). El slug es la
+#                clave con la que el detector de componentes cruza.
+# La coincidencia no distingue mayúsculas.
 
 - product: PHP
   min_version: "0"
