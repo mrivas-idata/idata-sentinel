@@ -16,6 +16,16 @@ from idata_sentinel.core.dns_resolver import DnsRecords, DnsResolver
 _SPF_LOOKUP_MECHANISMS = ("include:", "a:", "mx:", "ptr", "exists:", "redirect=")
 _SPF_LOOKUP_LIMIT = 10
 
+#: Selectores DKIM habituales. No se puede enumerar todos los selectores de forma
+#: pasiva (el nombre lo elige el emisor), así que se prueban los que publican los
+#: proveedores más comunes. Encontrar uno confirma DKIM; no encontrar ninguno es
+#: una señal débil ("no detectado por selectores comunes"), no una afirmación de
+#: ausencia.
+_DKIM_SELECTORS = (
+    "default", "google", "selector1", "selector2", "k1", "k2",
+    "mail", "dkim", "s1", "s2", "smtp", "mandrill", "mx", "zoho",
+)
+
 _ALL_QUALIFIER = re.compile(r"([-~?+])all\b", re.IGNORECASE)
 _DMARC_POLICY = re.compile(r"\bp\s*=\s*(none|quarantine|reject)\b", re.IGNORECASE)
 
@@ -121,6 +131,8 @@ class DnsEmailCheck(BaseCheck):
         out.extend(await self._dmarc_results(host, dns, receives_mail))
         if receives_mail:
             out.extend(await self._transport_results(host, dns))
+            out.extend(await self._dkim_results(host, dns))
+        out.extend(await self._bimi_results(host, dns))
         out.extend(self._caa_results(host, records))
         out.extend(await self._dnssec_results(host, dns))
         return out
@@ -264,6 +276,79 @@ class DnsEmailCheck(BaseCheck):
                 evidence=dmarc[:200], references=("RFC 7489 §7",),
             ))
         return out
+
+    # -- DKIM --------------------------------------------------------------
+
+    async def _dkim_results(self, host: str, dns: DnsResolver) -> list[CheckResult]:
+        """Prueba selectores DKIM comunes. Encontrar uno confirma DKIM; no
+        encontrar ninguno es una señal débil (no se puede enumerar todo selector).
+        """
+        found: list[str] = []
+        unmeasured = 0
+        for selector in _DKIM_SELECTORS:
+            answer = await dns.txt(f"{selector}._domainkey.{host}")
+            if answer.failed:
+                unmeasured += 1
+                continue
+            if any("v=dkim1" in v.lower() or "k=rsa" in v.lower() or "p=" in v.lower()
+                   for v in answer.values):
+                found.append(selector)
+
+        if found:
+            return [self._result(
+                sub_id=f"dkim_present@{host}", severity="info", likelihood="low", status="pass",
+                title=f"DKIM detectado en {host}",
+                finding=f"Se encontró una clave DKIM en el/los selector(es): {', '.join(found)}.",
+                business_impact="Evidencia positiva: el dominio firma su correo saliente.",
+                recommendation="Sin acción.",
+                evidence=", ".join(f"{s}._domainkey.{host}" for s in found),
+                references=("RFC 6376",),
+            )]
+        # Si TODAS las consultas fallaron, es no evaluable, no ausencia.
+        if unmeasured == len(_DKIM_SELECTORS):
+            return [self._unmeasured(sub_id=f"dkim_unmeasured@{host}", query=f"DKIM {host}")]
+        return [self._result(
+            sub_id=f"dkim_not_found@{host}", severity="low", likelihood="low", status="warning",
+            title=f"No se detectó DKIM en {host} (selectores comunes)",
+            finding=(
+                f"Ninguno de los {len(_DKIM_SELECTORS)} selectores DKIM comunes respondió con una "
+                f"clave. El dominio podría no firmar su correo, o usar un selector no estándar."
+            ),
+            business_impact=(
+                "Sin DKIM, DMARC solo puede apoyarse en SPF: el correo reenviado suele perder el "
+                "alineamiento y la protección anti-suplantación se debilita."
+            ),
+            recommendation="Publicar una clave DKIM y firmar el correo saliente; verificar el selector real si ya existe.",
+            evidence=f"selectores probados: {', '.join(_DKIM_SELECTORS)}",
+            references=("RFC 6376",),
+        )]
+
+    # -- BIMI --------------------------------------------------------------
+
+    async def _bimi_results(self, host: str, dns: DnsResolver) -> list[CheckResult]:
+        answer = await dns.txt(f"default._bimi.{host}")
+        if answer.failed:
+            return [self._unmeasured(sub_id=f"bimi_unmeasured@{host}", query=f"BIMI {host}")]
+        if any("v=bimi1" in v.lower() for v in answer.values):
+            return [self._result(
+                sub_id=f"bimi_present@{host}", severity="info", likelihood="low", status="pass",
+                title=f"BIMI configurado en {host}",
+                finding="El dominio publica un registro BIMI (indicador de marca en el correo).",
+                business_impact="Evidencia positiva: refuerza la identidad de marca en la bandeja del destinatario.",
+                recommendation="Sin acción.", evidence="default._bimi", references=("BIMI",),
+            )]
+        return [self._result(
+            sub_id=f"bimi_missing@{host}", severity="info", likelihood="low", status="info",
+            title=f"Sin registro BIMI en {host}",
+            finding=f"No se encontró default._bimi.{host} con 'v=BIMI1'.",
+            business_impact=(
+                "BIMI muestra el logo de la marca en clientes de correo compatibles; su ausencia es "
+                "una oportunidad de refuerzo de marca, no una vulnerabilidad. Requiere DMARC en "
+                "cuarentena o rechazo primero."
+            ),
+            recommendation="Considerar publicar BIMI una vez DMARC esté en 'p=quarantine' o 'p=reject'.",
+            evidence="", references=("BIMI",),
+        )]
 
     # -- MTA-STS / TLS-RPT -------------------------------------------------
 

@@ -161,6 +161,39 @@ async def test_dmarc_rua_default_provider_is_flagged(fake_dns):
     assert "dmarc_policy_none" not in ids
 
 
+# -- DKIM / BIMI -----------------------------------------------------------
+
+
+async def test_dkim_present_when_a_common_selector_resolves(fake_dns):
+    zone = {
+        (HOST, "MX"): ("10 mx.idata.test.",),
+        (f"google._domainkey.{HOST}", "TXT"): ("v=DKIM1; k=rsa; p=MIGf...",),
+    }
+    ids = _ids(await _evaluate(zone, fake_dns))
+    assert "dkim_present" in ids
+    assert "dkim_not_found" not in ids
+
+
+async def test_dkim_not_found_when_no_common_selector_resolves(fake_dns):
+    ids = _ids(await _evaluate({(HOST, "MX"): ("10 mx.idata.test.",)}, fake_dns))
+    assert "dkim_not_found" in ids
+
+
+async def test_dkim_only_checked_when_domain_receives_mail(fake_dns):
+    ids = _ids(await _evaluate({}, fake_dns))  # sin MX
+    assert not {i for i in ids if i.startswith("dkim")}
+
+
+async def test_bimi_present(fake_dns):
+    zone = {(f"default._bimi.{HOST}", "TXT"): ("v=BIMI1; l=https://idata.test/logo.svg",)}
+    assert "bimi_present" in _ids(await _evaluate(zone, fake_dns))
+
+
+async def test_bimi_missing_is_informational(fake_dns):
+    result = next(r for r in await _evaluate({}, fake_dns) if r.id.startswith("bimi_missing"))
+    assert result.severity == "info" and result.status == "info"
+
+
 # -- MTA-STS / TLS-RPT -----------------------------------------------------
 
 
