@@ -28,6 +28,10 @@ _CVE_HINTS_PATH = _DATA_DIR / "cve_hints.yaml"
 
 OSV_QUERY_URL = "https://api.osv.dev/v1/query"
 
+#: OSV.dev NO cubre WordPress ni sus plugins; para eso se usa wpvulnerability.net,
+#: base gratuita y sin API key con datos de core, plugins y temas de WordPress.
+WPVULN_BASE = "https://www.wpvulnerability.net"
+
 #: (slug local, ecosistema OSV, nombre de paquete). El slug debe coincidir con el
 #: que emiten los checks (`checks/javascript.py` → jquery, bootstrap, …).
 OSV_PRODUCTS: tuple[tuple[str, str, str], ...] = (
@@ -40,6 +44,20 @@ OSV_PRODUCTS: tuple[tuple[str, str, str], ...] = (
     ("lodash", "npm", "lodash"),
     ("moment", "npm", "moment"),
     ("dompurify", "npm", "dompurify"),
+)
+
+#: (slug local, tipo). El slug del plugin debe coincidir con el que emite el
+#: fingerprint de componentes WordPress (`checks/tech_fingerprint.py`). `core` se
+#: guarda bajo el producto "wordpress" (la coincidencia es case-insensitive).
+WP_PRODUCTS: tuple[tuple[str, str], ...] = (
+    ("wordpress", "core"),
+    ("contact-form-7", "plugin"),
+    ("uncode-privacy", "plugin"),
+    ("country-phone-field-contact-form-7", "plugin"),
+    ("elementor", "plugin"),
+    ("woocommerce", "plugin"),
+    ("wordpress-seo", "plugin"),  # Yoast SEO
+    ("akismet", "plugin"),
 )
 
 _HEADER = """# Base local, offline, de CVEs — SOLO informativa.
@@ -74,6 +92,57 @@ async def _default_fetch(ecosystem: str, package: str) -> list[dict]:
         resp = await client.post(OSV_QUERY_URL, json=payload)
         resp.raise_for_status()
         return resp.json().get("vulns", []) or []
+
+
+async def _default_wpvuln_fetch(kind: str, slug: str) -> list[dict]:
+    """Vulnerabilidades de WordPress core o de un plugin/tema desde
+    wpvulnerability.net. Devuelve la lista `data.vulnerability` (o vacía)."""
+    path = "/core" if kind == "core" else f"/{kind}/{slug}"
+    headers = {"User-Agent": "IDATA-Sentinel/1.0 (+https://idatachile.com)"}
+    async with httpx.AsyncClient(timeout=45.0, headers=headers) as client:
+        resp = await client.get(f"{WPVULN_BASE}{path}")
+        resp.raise_for_status()
+        data = (resp.json() or {}).get("data") or {}
+        return data.get("vulnerability") or []
+
+
+def _wpvuln_severity(vuln: dict) -> str:
+    impact = (vuln.get("impact") or {}).get("cvss") or {}
+    score = impact.get("score")
+    if isinstance(score, (int, float)):
+        return "critical" if score >= 9 else "high" if score >= 7 else "medium" if score >= 4 else "low"
+    vector = str(impact.get("vector") or "")
+    # Sin puntaje explícito: alto si compromete confidencialidad o integridad.
+    if "C:H" in vector or "I:H" in vector:
+        return "high"
+    return "medium"
+
+
+def wpvuln_to_hint(slug: str, vuln: dict) -> dict | None:
+    """Transforma una vuln de wpvulnerability.net en una entrada de cve_hints.
+
+    Solo se conservan las que tienen un CVE real (el pedido es "CVEs reales"). El
+    rango se toma del `operator`; el borde `le`/`ge` se trata como exclusivo, un
+    sub-reporte conservador que nunca sobre-afirma sobre la versión límite.
+    """
+    op = vuln.get("operator") or {}
+    max_version = op.get("max_version")
+    if not max_version:
+        return None
+    cve_ids = [s.get("id") for s in (vuln.get("source") or [])
+               if str(s.get("id", "")).upper().startswith("CVE-")]
+    if not cve_ids:
+        return None
+    min_version = op.get("min_version") or "0"
+    return {
+        "product": slug,
+        "min_version": str(min_version),
+        "max_version": str(max_version),
+        "cve_ids": cve_ids,
+        "title": (vuln.get("name") or "Vulnerabilidad conocida")[:200],
+        "cvss_severity": _wpvuln_severity(vuln),
+        "source": "wpvulnerability",
+    }
 
 
 def _version_from_events(events: list[dict], key: str) -> str | None:
@@ -146,29 +215,46 @@ def _load_existing(path: Path) -> list[dict]:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or []
 
 
+#: Etiquetas de `source` que gestiona el feed (se refrescan en cada sync). Las
+#: entradas sin `source` (curadas a mano) NUNCA se tocan.
+_FEED_SOURCES = frozenset({"osv", "wpvulnerability"})
+
+
 async def sync_cve_hints(
-    *, path: Path = _CVE_HINTS_PATH, products=OSV_PRODUCTS, fetch=_default_fetch,
+    *,
+    path: Path = _CVE_HINTS_PATH,
+    products=OSV_PRODUCTS,
+    fetch=_default_fetch,
+    wp_products=WP_PRODUCTS,
+    wpvuln_fetch=_default_wpvuln_fetch,
 ) -> SyncResult:
-    """Refresca las entradas `source: osv` desde OSV, preservando las manuales."""
+    """Refresca las entradas del feed (OSV para npm, wpvulnerability para
+    WordPress), preservando las curadas a mano."""
     existing = _load_existing(path)
-    preserved = [e for e in existing if str(e.get("source", "")).lower() != "osv"]
+    preserved = [e for e in existing if str(e.get("source", "")).lower() not in _FEED_SOURCES]
 
     feed_entries: list[dict] = []
     failed: list[str] = []
+
     for slug, ecosystem, package in products:
         try:
             vulns = await fetch(ecosystem, package)
         except Exception:  # una fuente caída no aborta el sync completo
             failed.append(slug)
             continue
-        for vuln in vulns:
-            hint = osv_vuln_to_hint(slug, vuln)
-            if hint is not None:
-                feed_entries.append(hint)
+        feed_entries.extend(h for h in (osv_vuln_to_hint(slug, v) for v in vulns) if h)
+
+    for slug, kind in wp_products:
+        try:
+            vulns = await wpvuln_fetch(kind, slug)
+        except Exception:
+            failed.append(slug)
+            continue
+        feed_entries.extend(h for h in (wpvuln_to_hint(slug, v) for v in vulns) if h)
 
     _write(path, preserved + feed_entries)
     return SyncResult(
-        products_queried=len(products),
+        products_queried=len(products) + len(wp_products),
         products_failed=failed,
         entries_from_feed=len(feed_entries),
         entries_preserved=len(preserved),

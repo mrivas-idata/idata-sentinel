@@ -1,32 +1,1561 @@
-# Base local, offline, curada a mano — SOLO informativa.
-# IDATA Sentinel NUNCA verifica explotabilidad; esto solo cruza versión
-# detectada contra rangos conocidos como referencia para el cliente.
+# Base local, offline, de CVEs — SOLO informativa.
+# IDATA Sentinel NUNCA verifica explotabilidad; esto solo cruza versión detectada
+# contra rangos conocidos como referencia para el cliente.
 #
-# ATENCIÓN: las entradas de este archivo son EJEMPLOS/PLACEHOLDER para
-# validar el pipeline. Antes de usar en un escaneo real, el equipo de
-# seguridad de IDATA debe curar esta lista con CVEs verificadas y sus
-# rangos de versión reales (fuente sugerida: NVD, GitHub Advisories).
+# `product` admite el nombre del stack ("WordPress", "Apache") o el *slug* de un
+# plugin/tema WordPress o de una librería JS ("revslider", "jquery"). La
+# coincidencia no distingue mayúsculas.
+#
+# Entradas con `source: osv` las genera `idata-sentinel cve-sync` desde OSV.dev y
+# se refrescan en cada sync. Las entradas SIN `source` (o `source: manual`) las
+# cura el equipo de IDATA y el sync NO las toca.
 #
 # rango de versión: [min_version, max_version) — max_version null = sin tope conocido.
-#
-# `product` admite tanto stack base como componentes de WordPress:
-#   - stack:     nombre del producto tal cual lo emite el fingerprint ("WordPress",
-#                "Apache", "PHP", "Nginx").
-#   - componente: el *slug* del plugin/tema tal como aparece en la URL de recursos
-#                ("revslider", "contact-form-7", "uncode-privacy"). El slug es la
-#                clave con la que el detector de componentes cruza.
-# La coincidencia no distingue mayúsculas.
 
 - product: PHP
-  min_version: "0"
-  max_version: "7.4.0"
-  cve_ids: ["CVE-2019-11043"]
-  title: "PHP-FPM: underflow que puede derivar en RCE bajo ciertas configuraciones de Nginx (ejemplo)."
-  cvss_severity: "high"
-
-- product: WordPress
-  min_version: "0"
-  max_version: "6.4.2"
-  cve_ids: ["CVE-2024-EJEMPLO-PLACEHOLDER"]
-  title: "Placeholder — reemplazar con CVEs reales de WordPress core antes de producción."
-  cvss_severity: "medium"
+  min_version: '0'
+  max_version: 7.4.0
+  cve_ids:
+  - CVE-2019-11043
+  title: 'PHP-FPM: underflow que puede derivar en RCE bajo ciertas configuraciones
+    de Nginx (ejemplo).'
+  cvss_severity: high
+- product: jquery
+  min_version: '0'
+  max_version: 1.9.0
+  cve_ids:
+  - CVE-2012-6708
+  - GHSA-2pqj-h3vj-pqgw
+  title: Cross-Site Scripting in jquery
+  cvss_severity: medium
+  source: osv
+- product: jquery
+  min_version: '0'
+  max_version: 1.6.3
+  cve_ids:
+  - CVE-2011-4969
+  - GHSA-579v-mp3v-rrw5
+  title: jQuery vulnerable to Cross-Site Scripting (XSS)
+  cvss_severity: medium
+  source: osv
+- product: jquery
+  min_version: 1.1.4
+  max_version: 3.4.0
+  cve_ids:
+  - CVE-2019-11358
+  - GHSA-6c3j-c64m-qhgq
+  - DRUPAL-CORE-2019-006
+  - PYSEC-2026-628
+  - SNYK-JS-JQUERY-174006
+  title: XSS in jQuery as used in Drupal, Backdrop CMS, and other products
+  cvss_severity: medium
+  source: osv
+- product: jquery
+  min_version: 1.12.0
+  max_version: 3.5.0
+  cve_ids:
+  - CVE-2020-11022
+  - GHSA-gxr4-xjj5-5px2
+  - BIT-drupal-2020-11022
+  title: Potential XSS vulnerability in jQuery
+  cvss_severity: medium
+  source: osv
+- product: jquery
+  min_version: 1.0.3
+  max_version: 3.5.0
+  cve_ids:
+  - CVE-2020-11023
+  - GHSA-jpcq-cgw6-v4j6
+  - BIT-drupal-2020-11023
+  title: Potential XSS vulnerability in jQuery
+  cvss_severity: medium
+  source: osv
+- product: jquery
+  min_version: 3.0.0-rc.1
+  max_version: 3.0.0
+  cve_ids:
+  - CVE-2016-10707
+  - GHSA-mhpp-875w-9cpv
+  title: Denial of Service in jquery
+  cvss_severity: high
+  source: osv
+- product: jquery
+  min_version: 1.2.1
+  max_version: 1.9.0
+  cve_ids:
+  - CVE-2020-7656
+  - GHSA-q4m3-2j7h-f7xw
+  - SNYK-JS-JQUERY-569619
+  title: Cross-Site Scripting in jquery
+  cvss_severity: medium
+  source: osv
+- product: jquery
+  min_version: '0'
+  max_version: 1.12.2
+  cve_ids:
+  - CVE-2015-9251
+  - GHSA-rmxg-73gg-4p98
+  title: Cross-Site Scripting (XSS) in jquery
+  cvss_severity: medium
+  source: osv
+- product: jquery-ui
+  min_version: '0'
+  max_version: 1.13.0
+  cve_ids:
+  - CVE-2021-41182
+  - GHSA-9gj3-hwp5-pmwc
+  - BIT-drupal-2021-41182
+  title: XSS in the `altField` option of the Datepicker widget in jquery-ui
+  cvss_severity: medium
+  source: osv
+- product: jquery-ui
+  min_version: '0'
+  max_version: 1.13.0
+  cve_ids:
+  - CVE-2021-41184
+  - GHSA-gpqq-952q-5327
+  - BIT-drupal-2021-41184
+  title: XSS in the `of` option of the `.position()` util in jquery-ui
+  cvss_severity: medium
+  source: osv
+- product: jquery-ui
+  min_version: '0'
+  max_version: 1.13.2
+  cve_ids:
+  - CVE-2022-31160
+  - GHSA-h6gj-6jjq-h8g9
+  title: jQuery UI vulnerable to XSS when refreshing a checkboxradio with an HTML-like
+    initial text label
+  cvss_severity: medium
+  source: osv
+- product: jquery-ui
+  min_version: '0'
+  max_version: 1.12.0
+  cve_ids:
+  - CVE-2016-7103
+  - GHSA-hpcf-8vf9-q4gj
+  title: jQuery-UI vulnerable to Cross-site Scripting in dialog closeText
+  cvss_severity: medium
+  source: osv
+- product: jquery-ui
+  min_version: '0'
+  max_version: 1.13.0
+  cve_ids:
+  - CVE-2021-41183
+  - GHSA-j7qv-pgf6-hvh4
+  - BIT-drupal-2021-41183
+  title: XSS in `*Text` options of the Datepicker widget in jquery-ui
+  cvss_severity: medium
+  source: osv
+- product: jquery-ui
+  min_version: '0'
+  max_version: 1.10.0
+  cve_ids:
+  - CVE-2012-6662
+  - GHSA-qqxp-xp9v-vvx6
+  title: jquery-ui Tooltip widget vulnerable to XSS
+  cvss_severity: medium
+  source: osv
+- product: jquery-ui
+  min_version: 1.7.0
+  max_version: 1.10.0
+  cve_ids:
+  - CVE-2010-5312
+  - GHSA-wcm2-9c89-wmfm
+  title: Cross-site Scripting in jquery-ui
+  cvss_severity: medium
+  source: osv
+- product: bootstrap
+  min_version: '0'
+  max_version: 3.4.0
+  cve_ids:
+  - CVE-2018-20676
+  - GHSA-3mgp-fx93-9xv5
+  title: XSS vulnerability that affects bootstrap
+  cvss_severity: medium
+  source: osv
+- product: bootstrap
+  min_version: 4.0.0
+  max_version: 4.1.2
+  cve_ids:
+  - CVE-2018-14040
+  - GHSA-3wqf-4x89-9g79
+  title: Bootstrap vulnerable to Cross-Site Scripting (XSS)
+  cvss_severity: medium
+  source: osv
+- product: bootstrap
+  min_version: 2.0.4
+  max_version: 3.4.0
+  cve_ids:
+  - CVE-2016-10735
+  - GHSA-4p24-vmcr-4gqj
+  title: Bootstrap Cross-site Scripting vulnerability
+  cvss_severity: medium
+  source: osv
+- product: bootstrap
+  min_version: 4.0.0
+  max_version: 4.1.2
+  cve_ids:
+  - CVE-2018-14042
+  - GHSA-7mvr-5x2g-wfc8
+  title: Bootstrap Cross-site Scripting vulnerability
+  cvss_severity: medium
+  source: osv
+- product: bootstrap
+  min_version: '0'
+  max_version: 4.3.1
+  cve_ids:
+  - CVE-2019-8331
+  - GHSA-9v3m-8fp8-mj99
+  title: Bootstrap Vulnerable to Cross-Site Scripting
+  cvss_severity: medium
+  source: osv
+- product: bootstrap
+  min_version: '0'
+  max_version: 3.4.0
+  cve_ids:
+  - CVE-2018-20677
+  - GHSA-ph58-4vrj-w6hr
+  title: bootstrap Cross-site Scripting vulnerability
+  cvss_severity: medium
+  source: osv
+- product: bootstrap
+  min_version: 4.0.0
+  max_version: 4.1.2
+  cve_ids:
+  - CVE-2018-14041
+  - GHSA-pj7m-g53m-7638
+  title: Bootstrap Cross-site Scripting vulnerability
+  cvss_severity: medium
+  source: osv
+- product: angular
+  min_version: '0'
+  max_version: 1.6.0
+  cve_ids:
+  - GHSA-28hp-fgcr-2r4h
+  title: Cross-Site Scripting via JSONP
+  cvss_severity: medium
+  source: osv
+- product: angular
+  min_version: '0'
+  max_version: 1.8.0
+  cve_ids:
+  - GHSA-5cp4-xmrw-59wf
+  title: XSS via JQLite DOM manipulation functions in AngularJS
+  cvss_severity: medium
+  source: osv
+- product: angular
+  min_version: '0'
+  max_version: 1.7.9
+  cve_ids:
+  - CVE-2019-10768
+  - GHSA-89mq-4x47-5v83
+  - SNYK-JS-ANGULAR-534884
+  title: angular Prototype Pollution vulnerability
+  cvss_severity: high
+  source: osv
+- product: angular
+  min_version: '0'
+  max_version: 1.8.0
+  cve_ids:
+  - CVE-2020-7676
+  - GHSA-mhp6-pxh8-r675
+  title: Angular vulnerable to Cross-site Scripting
+  cvss_severity: medium
+  source: osv
+- product: angular
+  min_version: '0'
+  max_version: 1.5.0-beta.1
+  cve_ids:
+  - CVE-2019-14863
+  - GHSA-r5fx-8r73-v86c
+  title: AngularJS Cross-site Scripting due to failure to sanitize `xlink.href` attributes
+  cvss_severity: medium
+  source: osv
+- product: vue
+  min_version: 2.0.0-alpha.1
+  max_version: 3.0.0-alpha.0
+  cve_ids:
+  - CVE-2024-9506
+  - GHSA-5j4c-8p2g-v4jx
+  title: ReDoS vulnerability in vue package that is exploitable through inefficient
+    regex evaluation in the parseHTML function
+  cvss_severity: low
+  source: osv
+- product: react
+  min_version: 0.4.0
+  max_version: 0.4.2
+  cve_ids:
+  - CVE-2013-7035
+  - GHSA-g53w-52xc-2j85
+  title: Cross-Site Scripting in react
+  cvss_severity: medium
+  source: osv
+- product: react
+  min_version: 0.0.1
+  max_version: 0.14.0
+  cve_ids:
+  - GHSA-hg79-j56m-fxgv
+  title: Cross-Site Scripting in react
+  cvss_severity: high
+  source: osv
+- product: lodash
+  min_version: 4.0.0
+  max_version: 4.17.21
+  cve_ids:
+  - CVE-2020-28500
+  - GHSA-29mw-wpgm-hmr9
+  title: Regular Expression Denial of Service (ReDoS) in lodash
+  cvss_severity: medium
+  source: osv
+- product: lodash
+  min_version: '0'
+  max_version: 4.17.21
+  cve_ids:
+  - CVE-2021-23337
+  - CVE-2026-4800
+  - GHSA-35jh-r3h4-6jhm
+  - GHSA-r5fr-rjxr-66jc
+  title: Command Injection in lodash
+  cvss_severity: high
+  source: osv
+- product: lodash
+  min_version: '0'
+  max_version: 4.17.11
+  cve_ids:
+  - CVE-2018-16487
+  - GHSA-4xc9-xhrj-v574
+  title: Prototype Pollution in lodash
+  cvss_severity: high
+  source: osv
+- product: lodash
+  min_version: '0'
+  max_version: 4.18.0
+  cve_ids:
+  - CVE-2025-13465
+  - CVE-2026-2950
+  - GHSA-f23m-r3pf-42rh
+  - GHSA-xxjr-mmjv-4gpg
+  title: lodash vulnerable to Prototype Pollution via array path bypass in `_.unset`
+    and `_.omit`
+  cvss_severity: medium
+  source: osv
+- product: lodash
+  min_version: '0'
+  max_version: 4.17.5
+  cve_ids:
+  - CVE-2018-3721
+  - GHSA-fvqr-27wr-82fm
+  title: Prototype Pollution in lodash
+  cvss_severity: medium
+  source: osv
+- product: lodash
+  min_version: '0'
+  max_version: 4.17.12
+  cve_ids:
+  - CVE-2019-10744
+  - GHSA-jf85-cpcp-j695
+  title: Prototype Pollution in lodash
+  cvss_severity: critical
+  source: osv
+- product: lodash
+  min_version: 3.7.0
+  max_version: 4.17.19
+  cve_ids:
+  - CVE-2020-8203
+  - GHSA-p6mc-m468-83gw
+  title: Prototype Pollution in lodash
+  cvss_severity: high
+  source: osv
+- product: lodash
+  min_version: 4.0.0
+  max_version: 4.18.0
+  cve_ids:
+  - CVE-2021-23337
+  - CVE-2026-4800
+  - GHSA-r5fr-rjxr-66jc
+  - GHSA-35jh-r3h4-6jhm
+  title: lodash vulnerable to Code Injection via `_.template` imports key names
+  cvss_severity: high
+  source: osv
+- product: lodash
+  min_version: 4.7.0
+  max_version: 4.17.11
+  cve_ids:
+  - CVE-2019-1010266
+  - GHSA-x5rq-j2xg-h7qm
+  title: Regular Expression Denial of Service (ReDoS) in lodash
+  cvss_severity: medium
+  source: osv
+- product: lodash
+  min_version: 4.0.0
+  max_version: 4.17.23
+  cve_ids:
+  - CVE-2025-13465
+  - CVE-2026-2950
+  - GHSA-xxjr-mmjv-4gpg
+  - GHSA-f23m-r3pf-42rh
+  title: Lodash has Prototype Pollution Vulnerability in `_.unset` and `_.omit` functions
+  cvss_severity: medium
+  source: osv
+- product: moment
+  min_version: '0'
+  max_version: 2.19.3
+  cve_ids:
+  - CVE-2017-18214
+  - GHSA-446m-mv8f-q348
+  title: Regular Expression Denial of Service in moment
+  cvss_severity: high
+  source: osv
+- product: moment
+  min_version: '0'
+  max_version: 2.11.2
+  cve_ids:
+  - CVE-2016-4055
+  - GHSA-87vv-r9j6-g5qv
+  title: Regular Expression Denial of Service in moment
+  cvss_severity: medium
+  source: osv
+- product: moment
+  min_version: '0'
+  max_version: 2.29.2
+  cve_ids:
+  - CVE-2022-24785
+  - GHSA-8hfj-j24r-96c4
+  title: 'Path Traversal: ''dir/../../filename'' in moment.locale'
+  cvss_severity: high
+  source: osv
+- product: moment
+  min_version: 2.18.0
+  max_version: 2.29.4
+  cve_ids:
+  - CVE-2022-31129
+  - GHSA-wc69-rhjr-hc9g
+  title: Moment.js vulnerable to Inefficient Regular Expression Complexity
+  cvss_severity: high
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.4.0
+  cve_ids:
+  - CVE-2026-65903
+  - GHSA-39q2-94rc-95cp
+  title: DOMPurify's ADD_TAGS function form bypasses FORBID_TAGS due to short-circuit
+    evaluation
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 2.0.17
+  cve_ids:
+  - CVE-2020-26870
+  - GHSA-63q7-h895-m982
+  title: Cross-site Scripting in dompurify
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.4.7
+  cve_ids:
+  - CVE-2026-65902
+  - GHSA-76mc-f452-cxcm
+  title: 'DOMPurify: Hook mutation of `data.allowedTags` / `data.allowedAttributes`
+    permanently pollutes `DEFAULT_ALLOWED_TAGS` / `DEFAULT_ALLOWED_ATTR`'
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: 3.4.4
+  max_version: 3.4.5
+  cve_ids:
+  - CVE-2026-47423
+  - GHSA-87xg-pxx2-7hvx
+  title: DOMPurify XSS via selectedcontent re-clone
+  cvss_severity: high
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 1.0.11
+  cve_ids:
+  - CVE-2019-25155
+  - GHSA-8hgg-xxm5-3873
+  title: DOMPurify Open Redirect vulnerability
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.4.12
+  cve_ids:
+  - CVE-2026-66010
+  - GHSA-c2j3-45gr-mqc4
+  title: 'DOMPurify: `CUSTOM_ELEMENT_HANDLING` bypasses `afterSanitizeElements` for
+    allowed custom elements.'
+  cvss_severity: low
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 2.0.3
+  cve_ids:
+  - CVE-2019-16728
+  - GHSA-chqj-j4fh-rw7m
+  title: Cross-Site Scripting in dompurify
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.3.2
+  cve_ids:
+  - CVE-2026-65913
+  - GHSA-cj63-jhhr-wcxv
+  title: DOMPurify USE_PROFILES prototype pollution allows event handlers
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.3.2
+  cve_ids:
+  - CVE-2026-65912
+  - GHSA-cjmm-f4jc-qw8r
+  title: DOMPurify ADD_ATTR predicate skips URI validation
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.4.11
+  cve_ids:
+  - CVE-2026-65898
+  - GHSA-cmwh-pvxp-8882
+  title: 'DOMPurify: Permanent `ALLOWED_ATTR` pollution via `setConfig()` bypassing
+    the hook clone-guard (incomplete fix of the 3.4.7 hook-pollution patch)'
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: 1.0.10
+  max_version: 3.4.0
+  cve_ids:
+  - CVE-2026-41239
+  - GHSA-crv5-9vww-q3g8
+  title: DOMPurify has a SAFE_FOR_TEMPLATES bypass in RETURN_DOM mode
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: 3.0.0
+  max_version: 3.4.8
+  cve_ids:
+  - CVE-2026-65900
+  - GHSA-gvmj-g25r-r7wr
+  title: 'DOMPurify: SAFE_FOR_TEMPLATES bypass - template expressions survive sanitization
+    inside <template> content when using DOM output modes'
+  cvss_severity: low
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 2.5.0
+  cve_ids:
+  - CVE-2024-47875
+  - GHSA-gx9m-whjm-85jf
+  title: DOMpurify has a nesting-based mXSS
+  cvss_severity: high
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.4.0
+  cve_ids:
+  - CVE-2026-41240
+  - GHSA-h7mw-gpvr-xq4m
+  title: 'DOMPurify: FORBID_TAGS bypassed by function-based ADD_TAGS predicate (asymmetry
+    with FORBID_ATTR fix)'
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.3.2
+  cve_ids:
+  - CVE-2026-65914
+  - GHSA-h8r8-wccr-v5f2
+  title: 'DOMPurify is vulnerable to mutation-XSS via Re-Contextualization '
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.4.6
+  cve_ids:
+  - CVE-2026-49458
+  - GHSA-hpcv-96wg-7vj8
+  title: 'DOMPurify: Cross-realm IN_PLACE sanitization leaves executable markup intact
+    via realm-bound `instanceof` checks'
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 2.0.7
+  cve_ids:
+  - GHSA-mjjq-c88q-qhr6
+  title: Cross-Site Scripting in dompurify
+  cvss_severity: critical
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 2.5.4
+  cve_ids:
+  - CVE-2024-45801
+  - GHSA-mmhx-hmjr-r674
+  title: DOMPurify allows tampering by prototype pollution
+  cvss_severity: high
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 2.4.2
+  cve_ids:
+  - CVE-2024-48910
+  - GHSA-p3vf-v8qc-cwcr
+  title: DOMPurify vulnerable to tampering by prototype polution
+  cvss_severity: critical
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.4.6
+  cve_ids:
+  - CVE-2026-49459
+  - GHSA-r47g-fvhr-h676
+  title: 'DOMPurify: IN_PLACE mode preserves attributes of a clobbered root element,
+    allowing XSS via attacker-controlled root DOM'
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.4.7
+  cve_ids:
+  - CVE-2026-49978
+  - GHSA-rp9w-3fw7-7cwq
+  title: DOMPurify IN_PLACE Sanitization Bypass via Attached Shadow Root Inside <template>.content
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: 3.1.3
+  max_version: 3.3.2
+  cve_ids:
+  - CVE-2026-0540
+  - GHSA-v2wj-7wpq-c8vv
+  title: DOMPurify contains a Cross-site Scripting vulnerability
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: 3.1.3
+  max_version: 3.2.7
+  cve_ids:
+  - CVE-2025-15599
+  - GHSA-v8jm-5vwx-cfxm
+  title: DOMPurify contains a Cross-site Scripting vulnerability
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: 3.0.1
+  max_version: 3.4.0
+  cve_ids:
+  - CVE-2026-41238
+  - GHSA-v9jr-rg53-9pgp
+  title: 'DOMPurify: Prototype Pollution to XSS Bypass via CUSTOM_ELEMENT_HANDLING
+    Fallback'
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.2.4
+  cve_ids:
+  - CVE-2025-26791
+  - GHSA-vhxf-7vqr-mrjg
+  title: DOMPurify allows Cross-site Scripting (XSS)
+  cvss_severity: medium
+  source: osv
+- product: dompurify
+  min_version: '0'
+  max_version: 3.4.9
+  cve_ids:
+  - CVE-2026-65899
+  - GHSA-vxr8-fq34-vvx9
+  title: 'DOMPurify: Trusted Types policy survives `clearConfig()` and can poison
+    later `RETURN_TRUSTED_TYPE` output'
+  cvss_severity: low
+  source: osv
+- product: contact-form-7
+  min_version: '0'
+  max_version: 5.3.2
+  cve_ids:
+  - CVE-2020-35489
+  title: Contact Form 7 [contact-form-7] < 5.3.2
+  cvss_severity: high
+  source: wpvulnerability
+- product: contact-form-7
+  min_version: '0'
+  max_version: 5.0.4
+  cve_ids:
+  - CVE-2018-20979
+  title: Contact Form 7 [contact-form-7] < 5.0.4
+  cvss_severity: high
+  source: wpvulnerability
+- product: contact-form-7
+  min_version: '0'
+  max_version: 3.7.2
+  cve_ids:
+  - CVE-2014-2265
+  title: Contact Form 7 [contact-form-7] < 3.7.2
+  cvss_severity: medium
+  source: wpvulnerability
+- product: contact-form-7
+  min_version: '0'
+  max_version: 5.8.4
+  cve_ids:
+  - CVE-2023-6449
+  title: Contact Form 7 [contact-form-7] < 5.8.4
+  cvss_severity: high
+  source: wpvulnerability
+- product: contact-form-7
+  min_version: '0'
+  max_version: 5.9.2
+  cve_ids:
+  - CVE-2024-2242
+  title: Contact Form 7 [contact-form-7] < 5.9.2
+  cvss_severity: medium
+  source: wpvulnerability
+- product: contact-form-7
+  min_version: '0'
+  max_version: 5.9.5
+  cve_ids:
+  - CVE-2024-4704
+  title: Contact Form 7 [contact-form-7] < 5.9.5
+  cvss_severity: medium
+  source: wpvulnerability
+- product: contact-form-7
+  min_version: '0'
+  max_version: 6.0.6
+  cve_ids:
+  - CVE-2025-3247
+  title: Contact Form 7 [contact-form-7] < 6.0.6
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.6.3
+  cve_ids:
+  - CVE-2021-24891
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.6.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.1.4
+  cve_ids:
+  - CVE-2021-24202
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.1.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.1.4
+  cve_ids:
+  - CVE-2021-24203
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.1.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.1.4
+  cve_ids:
+  - CVE-2021-24204
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.1.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.1.4
+  cve_ids:
+  - CVE-2021-24205
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.1.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.1.4
+  cve_ids:
+  - CVE-2021-24206
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.1.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.1.4
+  cve_ids:
+  - CVE-2021-24201
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.1.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.0.14
+  cve_ids:
+  - CVE-2020-36171
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.0.14
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 2.9.3
+  cve_ids:
+  - CVE-2020-20406
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 2.9.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 2.9.14
+  cve_ids:
+  - CVE-2020-15020
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 2.9.14
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 2.9.6
+  cve_ids:
+  - CVE-2020-20634
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 2.9.6
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 2.9.9
+  cve_ids:
+  - CVE-2020-13864
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 2.9.9
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 2.9.10
+  cve_ids:
+  - CVE-2020-13865
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 2.9.10
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 2.8.5
+  cve_ids:
+  - CVE-2020-8426
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 2.8.5
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 2.8.4
+  cve_ids:
+  - CVE-2020-7109
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 2.8.4
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 1.8.0
+  cve_ids:
+  - CVE-2017-18596
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 1.8.0
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: 3.6.0
+  max_version: 3.6.2
+  cve_ids:
+  - CVE-2022-1329
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    >= 3.6.0 - <= 3.6.2
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.5.6
+  cve_ids:
+  - CVE-2022-29455
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.5.6
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 2.7.5
+  cve_ids:
+  - CVE-2020-7055
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 2.7.5
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.13.3
+  cve_ids:
+  - CVE-2023-33922
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.13.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.12.2
+  cve_ids:
+  - CVE-2023-0329
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.12.2
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 2.9.8
+  cve_ids:
+  - CVE-2020-36703
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 2.9.8
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.5.5
+  cve_ids:
+  - CVE-2022-4953
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.5.5
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.16.5
+  cve_ids:
+  - CVE-2023-47505
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.16.5
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.16.5
+  cve_ids:
+  - CVE-2023-47504
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.16.5
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.18.2
+  cve_ids:
+  - CVE-2023-48777
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.18.2
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.19.0
+  cve_ids:
+  - CVE-2024-0506
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.19.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.19.1
+  cve_ids:
+  - CVE-2024-24934
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.19.1
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.20.3
+  cve_ids:
+  - CVE-2024-2117
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.20.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.22.0-beta2
+  cve_ids:
+  - CVE-2024-4619
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.22.0-beta2
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.22.2
+  cve_ids:
+  - CVE-2024-37437
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.22.2
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.24.0
+  cve_ids:
+  - CVE-2024-5416
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.24.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.24.6
+  cve_ids:
+  - CVE-2024-6757
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.24.6
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.25.8
+  cve_ids:
+  - CVE-2024-8236
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.25.8
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.25.10
+  cve_ids:
+  - CVE-2024-10453
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.25.10
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.27.5
+  cve_ids:
+  - CVE-2024-13445
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.27.5
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.25.11
+  cve_ids:
+  - CVE-2024-54444
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.25.11
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.29.1
+  cve_ids:
+  - CVE-2024-50555
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.29.1
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.30.3
+  cve_ids:
+  - CVE-2025-4566
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.30.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.29.1
+  cve_ids:
+  - CVE-2025-3075
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.29.1
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.30.3
+  cve_ids:
+  - CVE-2025-8081
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.30.3
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.33.1
+  cve_ids:
+  - CVE-2025-67588
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.33.1
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.33.4
+  cve_ids:
+  - CVE-2025-11220
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.33.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.35.6
+  cve_ids:
+  - CVE-2026-32445
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.35.6
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.35.6
+  cve_ids:
+  - CVE-2026-32352
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.35.6
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.35.8
+  cve_ids:
+  - CVE-2026-1206
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.35.8
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 3.35.6
+  cve_ids:
+  - CVE-2025-14732
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 3.35.6
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 4.0.5
+  cve_ids:
+  - CVE-2026-6127
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 4.0.5
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 4.1.1
+  cve_ids:
+  - CVE-2026-49782
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 4.1.1
+  cvss_severity: medium
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 4.1.4
+  cve_ids:
+  - CVE-2026-57619
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 4.1.4
+  cvss_severity: high
+  source: wpvulnerability
+- product: elementor
+  min_version: '0'
+  max_version: 4.1.4
+  cve_ids:
+  - CVE-2026-8825
+  title: Elementor Website Builder &#8211; more than just a page builder [elementor]
+    < 4.1.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 6.6.0
+  cve_ids:
+  - CVE-2021-32790
+  title: WooCommerce [woocommerce] < 6.6.0
+  cvss_severity: high
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 5.2.0
+  cve_ids:
+  - CVE-2021-24323
+  title: WooCommerce [woocommerce] < 5.2.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 4.7.0
+  cve_ids:
+  - CVE-2020-29156
+  title: WooCommerce [woocommerce] < 4.7.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 3.2.4
+  cve_ids:
+  - CVE-2017-18356
+  title: WooCommerce [woocommerce] < 3.2.4
+  cvss_severity: high
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 3.4.6
+  cve_ids:
+  - CVE-2018-20714
+  title: WooCommerce [woocommerce] < 3.4.6
+  cvss_severity: high
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '2.3'
+  max_version: 2.3.5
+  cve_ids:
+  - CVE-2015-2329
+  title: WooCommerce [woocommerce] >= 2.3 - <= 2.3.5
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: '4.0'
+  cve_ids:
+  - CVE-2017-17058
+  title: WooCommerce [woocommerce] < 4.0
+  cvss_severity: high
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 2.6.9
+  cve_ids:
+  - CVE-2016-10112
+  title: WooCommerce [woocommerce] < 2.6.9
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 2.2.11
+  cve_ids:
+  - CVE-2015-2069
+  title: WooCommerce [woocommerce] < 2.2.11
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 2.2.3
+  cve_ids:
+  - CVE-2014-6313
+  title: WooCommerce [woocommerce] < 2.2.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 3.5.5
+  cve_ids:
+  - CVE-2019-9168
+  title: WooCommerce [woocommerce] < 3.5.5
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 6.6.0
+  cve_ids:
+  - CVE-2022-2099
+  title: WooCommerce [woocommerce] < 6.6.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 6.2.1
+  cve_ids:
+  - CVE-2022-0775
+  title: WooCommerce [woocommerce] < 6.2.1
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 8.2.0
+  cve_ids:
+  - CVE-2023-47777
+  title: WooCommerce [woocommerce] < 8.2.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 8.3.0
+  cve_ids:
+  - CVE-2023-52222
+  title: WooCommerce [woocommerce] < 8.3.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 8.6.0
+  cve_ids:
+  - CVE-2024-22155
+  title: WooCommerce [woocommerce] < 8.6.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: '8.6'
+  cve_ids:
+  - CVE-2024-1310
+  title: WooCommerce [woocommerce] < 8.6
+  cvss_severity: high
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 8.9.3
+  cve_ids:
+  - CVE-2024-37297
+  title: WooCommerce [woocommerce] < 8.9.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 9.0.0
+  cve_ids:
+  - CVE-2024-35777
+  title: WooCommerce [woocommerce] < 9.0.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 9.1.3
+  cve_ids:
+  - CVE-2024-39666
+  title: WooCommerce [woocommerce] < 9.1.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 9.1.0
+  cve_ids:
+  - CVE-2024-9944
+  title: WooCommerce [woocommerce] < 9.1.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 9.7.1
+  cve_ids:
+  - CVE-2025-26762
+  title: WooCommerce [woocommerce] < 9.7.1
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 9.3.4
+  cve_ids:
+  - CVE-2025-5062
+  title: WooCommerce [woocommerce] < 9.3.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 10.0.3
+  cve_ids:
+  - CVE-2025-49042
+  title: WooCommerce [woocommerce] < 10.0.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 10.4.3
+  cve_ids:
+  - CVE-2025-15033
+  title: WooCommerce [woocommerce] < 10.4.3
+  cvss_severity: high
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 10.5.3
+  cve_ids:
+  - CVE-2026-3589
+  title: WooCommerce [woocommerce] < 10.5.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: woocommerce
+  min_version: '0'
+  max_version: 7.1.0
+  cve_ids:
+  - CVE-2022-50972
+  title: WooCommerce [woocommerce] == 7.1.0 (unfixed)
+  cvss_severity: high
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: '17.3'
+  cve_ids:
+  - CVE-2021-25118
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 17.3
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: 3.4.1
+  cve_ids:
+  - CVE-2021-24153
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 3.4.1
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: '11.6'
+  cve_ids:
+  - CVE-2019-13478
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 11.6
+  cvss_severity: high
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: 9.2.0
+  cve_ids:
+  - CVE-2018-19370
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 9.2.0
+  cvss_severity: high
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: 5.8.0
+  cve_ids:
+  - CVE-2017-16842
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 5.8.0
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: '2.2'
+  cve_ids:
+  - CVE-2012-6692
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 2.2
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: 1.7.4
+  cve_ids:
+  - CVE-2015-2292
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 1.7.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: 1.7.4
+  cve_ids:
+  - CVE-2015-2293
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 1.7.4
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: '21.1'
+  cve_ids:
+  - CVE-2023-40680
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 21.1
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: '22.6'
+  cve_ids:
+  - CVE-2024-4041
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 22.6
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: '22.7'
+  cve_ids:
+  - CVE-2024-4984
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 22.7
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: '27.2'
+  cve_ids:
+  - CVE-2026-3427
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 27.2
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: '26.9'
+  cve_ids:
+  - CVE-2026-1293
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 26.9
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: '26.6'
+  cve_ids:
+  - CVE-2025-14481
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 26.6
+  cvss_severity: medium
+  source: wpvulnerability
+- product: wordpress-seo
+  min_version: '0'
+  max_version: '28.1'
+  cve_ids:
+  - CVE-2026-15425
+  title: Yoast SEO &#8211; Advanced SEO with real-time guidance and built-in AI [wordpress-seo]
+    < 28.1
+  cvss_severity: medium
+  source: wpvulnerability
+- product: akismet
+  min_version: '0'
+  max_version: 3.1.5
+  cve_ids:
+  - CVE-2015-9357
+  title: 'Akismet Anti-spam: Spam Protection [akismet] < 3.1.5'
+  cvss_severity: medium
+  source: wpvulnerability
+- product: akismet
+  min_version: '0'
+  max_version: 2.0.2
+  cve_ids:
+  - CVE-2007-2714
+  title: 'Akismet Anti-spam: Spam Protection [akismet] < 2.0.2'
+  cvss_severity: medium
+  source: wpvulnerability
