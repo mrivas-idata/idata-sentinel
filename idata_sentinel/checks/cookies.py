@@ -132,4 +132,48 @@ class CookiesCheck(BaseCheck):
                 evidence=cookie.name, references=("OWASP SameSite", "CWE-352"),
             ))
 
+        out.extend(self._prefix_results(cookie, suffix))
+        return out
+
+    def _prefix_results(self, cookie: "_ParsedCookie", suffix: str) -> list[CheckResult]:
+        """Prefijos de cookie RFC 6265bis: `__Secure-` exige Secure; `__Host-`
+        exige Secure + Path=/ + sin Domain. Un prefijo mal usado es peor que
+        ninguno: da falsa sensación de refuerzo, y algunos navegadores rechazan
+        la cookie por completo."""
+        name = cookie.name
+        lowered = name.lower()
+        out: list[CheckResult] = []
+
+        if lowered.startswith("__secure-") and "secure" not in cookie.flags:
+            out.append(self._result(
+                sub_id=f"cookie_prefix_secure_violation{suffix}", severity="medium",
+                likelihood="medium", status="fail",
+                title=f"Cookie '{name}' usa el prefijo __Secure- sin el flag Secure",
+                finding=f"'{name}' declara el prefijo __Secure- pero no tiene el flag Secure.",
+                business_impact="El prefijo promete transporte seguro que no se cumple; navegadores "
+                                "que aplican la regla rechazan la cookie, rompiendo la sesión.",
+                recommendation="Agregar el flag Secure, o quitar el prefijo si no se puede garantizar.",
+                evidence=name, references=("RFC 6265bis",),
+            ))
+
+        if lowered.startswith("__host-"):
+            problems = []
+            if "secure" not in cookie.flags:
+                problems.append("sin Secure")
+            if cookie.attrs.get("path") != "/":
+                problems.append("Path != /")
+            if "domain" in cookie.attrs:
+                problems.append("declara Domain")
+            if problems:
+                out.append(self._result(
+                    sub_id=f"cookie_prefix_host_violation{suffix}", severity="medium",
+                    likelihood="medium", status="fail",
+                    title=f"Cookie '{name}' usa el prefijo __Host- sin cumplir sus requisitos",
+                    finding=f"'{name}' declara __Host- pero: {', '.join(problems)}.",
+                    business_impact="El prefijo __Host- es la fijación más fuerte de una cookie al "
+                                    "origen; mal usado, el navegador la rechaza y la protección se pierde.",
+                    recommendation="Cumplir Secure + Path=/ + sin Domain, o quitar el prefijo.",
+                    evidence=name, references=("RFC 6265bis",),
+                ))
+
         return out
