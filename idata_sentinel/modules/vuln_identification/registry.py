@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 from idata_sentinel.checks.auth_enforcement import AuthEnforcementCheck
+from idata_sentinel.checks.breach import BreachExposureCheck
 from idata_sentinel.checks.cookies import CookiesCheck
 from idata_sentinel.checks.cors_config import CorsConfigCheck
 from idata_sentinel.checks.exposure import ExposureCheck
 from idata_sentinel.checks.http_headers import HttpHeadersCheck
 from idata_sentinel.checks.http_methods import HttpMethodsCheck
+from idata_sentinel.checks.javascript import JavaScriptCheck
 from idata_sentinel.checks.modern_headers import ModernHeadersCheck
 from idata_sentinel.checks.redirect_audit import RedirectAuditCheck
 from idata_sentinel.checks.security_files import SecurityFilesCheck
@@ -23,6 +25,9 @@ ALL_CHECKS: list[type[BaseCheck]] = [
     TechFingerprintCheck,
     SecurityFilesCheck,
     ExposureCheck,
+    JavaScriptCheck,
+    # OSINT opt-in: no-op salvo que haya API key configurada (Tier 1.3).
+    BreachExposureCheck,
     # Activos: solo corren en audit y con habilitación explícita por nombre (§4).
     HttpMethodsCheck,
     CorsConfigCheck,

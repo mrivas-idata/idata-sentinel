@@ -520,6 +520,31 @@ def doc(
             raise typer.Exit(code=1) from e
 
 
+@app.command("cve-sync")
+def cve_sync() -> None:
+    """Actualiza la base local de CVEs (data/cve_hints.yaml) desde OSV.dev.
+
+    Herramienta de mantenimiento: consulta la red UNA vez para poblar la base que
+    el escaneo luego lee 100% offline. Preserva las entradas curadas a mano.
+    """
+    from idata_sentinel.core.cve_feed import sync_cve_hints
+
+    console.print("[cyan]Sincronizando CVEs desde OSV.dev…[/cyan]")
+    try:
+        result = asyncio.run(sync_cve_hints())
+    except Exception as e:  # noqa: BLE001
+        console.print(f"[red]Falló la sincronización: {type(e).__name__}: {e}[/red]")
+        raise typer.Exit(code=1) from e
+
+    console.print(
+        f"[green]Listo.[/green] {result.entries_from_feed} entrada(s) desde el feed, "
+        f"{result.entries_preserved} curada(s) preservada(s), "
+        f"{result.products_queried} producto(s) consultado(s)."
+    )
+    if result.products_failed:
+        console.print(f"[yellow]Sin respuesta para: {', '.join(result.products_failed)}.[/yellow]")
+
+
 @app.command("keygen")
 def keygen() -> None:
     """Genera una clave para cifrar en reposo los datos de escaneo (plan §1.4)."""

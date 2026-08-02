@@ -98,6 +98,30 @@ def _severity_from_cvss(label: str) -> str:
     return {"critical": "medium", "high": "medium", "medium": "low", "low": "low"}.get(label, "low")
 
 
+def cve_matches(product: str, version: str) -> list[dict]:
+    """Entradas de `cve_hints.yaml` que aplican a `producto@versión`. Función
+    compartida: la usan el fingerprint de stack, los componentes WordPress y el
+    análisis de librerías JS. Coincidencia por slug, sin distinguir mayúsculas.
+    """
+    if not version:
+        return []
+    version_t = _version_tuple(version)
+    out: list[dict] = []
+    for entry in _load_cve_hints():
+        if str(entry.get("product", "")).lower() != product.lower():
+            continue
+        min_v = _version_tuple(str(entry.get("min_version", "0")))
+        max_raw = entry.get("max_version")
+        max_v = _version_tuple(str(max_raw)) if max_raw else None
+        if _in_range(version_t, min_v, max_v):
+            out.append(entry)
+    return out
+
+
+def cve_severity(label: str) -> str:
+    return _severity_from_cvss(label)
+
+
 def detect_technologies(resp) -> list[Detection]:
     """Detección por firmas, reutilizable fuera de este check (p.ej. por
     Módulo 2 — Inventario de activos — para fingerprint por subdominio)."""
@@ -210,22 +234,8 @@ class TechFingerprintCheck(BaseCheck):
         return out
 
     def _cve_informational(self, d: Detection) -> list[CheckResult]:
-        if not d.version:
-            return []
-        version_t = _version_tuple(d.version)
         out: list[CheckResult] = []
-        for entry in _load_cve_hints():
-            # Coincidencia por producto/slug, sin distinguir mayúsculas: las
-            # entradas de componentes se curan con el slug ("revslider"), las de
-            # stack con el nombre ("WordPress").
-            if str(entry.get("product", "")).lower() != d.product.lower():
-                continue
-            min_v = _version_tuple(str(entry.get("min_version", "0")))
-            max_raw = entry.get("max_version")
-            max_v = _version_tuple(str(max_raw)) if max_raw else None
-            if not _in_range(version_t, min_v, max_v):
-                continue
-
+        for entry in cve_matches(d.product, d.version or ""):
             cve_ids = entry.get("cve_ids", [])
             out.append(self._result(
                 sub_id=f"cve_informational@{d.product}:{d.version}",

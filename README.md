@@ -8,7 +8,7 @@ clientes con contrato como para prospección con información pública.
 
 | Módulo | Alias | Qué resuelve |
 |---|---|---|
-| Identificación de vulnerabilidades | `vuln` | Cabeceras, TLS, cookies, fingerprint de stack y de componentes WordPress (plugins/temas) + CVE informativa, archivos de seguridad, exposición de información |
+| Identificación de vulnerabilidades | `vuln` | Cabeceras (CSP profunda), TLS, cookies (con prefijos `__Host-`/`__Secure-`), fingerprint de stack y de componentes WordPress + CVE informativa, archivos de seguridad, exposición, análisis de JavaScript (mixed content, SRI, source maps, secretos, librerías) y OSINT de filtraciones (opt-in) |
 | Inventario de activos | `assets` | Subdominios por Certificate Transparency, DNS, seguridad de correo, takeover, CDN/WAF, superficie de ataque |
 | Datos Personales (Ley 21.719) | `privacy` | Formularios con datos personales, consentimiento, rastreadores, transferencias internacionales, semáforo por principio |
 | Monitoreo continuo | `monitor` | Línea base, diff entre escaneos, alertas por webhook, tendencia del score |
@@ -38,6 +38,13 @@ inyección, fuzzing de rutas, denegación de servicio ni explotación de CVE.
 En Chile aplica la **Ley 21.459** de delitos informáticos: escanear activamente un
 sistema ajeno sin autorización es delito. El modo pasivo es legal porque solo lee
 información publicada.
+
+- El escaneo es **offline por defecto**: solo lee lo que el objetivo publica. Dos
+  capacidades tocan servicios externos y por eso son aparte: `cve-sync` (actualiza
+  la base local de CVEs desde OSV.dev; se corre a mano, nunca durante un escaneo) y
+  el OSINT de filtraciones (opt-in, solo con `IDATA_HIBP_API_KEY`; la búsqueda por
+  dominio de HIBP exige verificar la propiedad del dominio, así que es para clientes
+  que autorizan, no para prospección).
 
 - El modo auditoría exige dominio en alcance, responsable que autoriza, cargo y
   número de contrato. Todo queda en `audit_log.json`, append-only.
