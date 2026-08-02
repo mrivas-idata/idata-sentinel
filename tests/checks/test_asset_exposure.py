@@ -38,6 +38,20 @@ def test_unreachable_asset_produces_no_findings():
     assert AssetExposureCheck().evaluate(AssetProfile(host="dev.idata.test")) == []
 
 
+def test_internal_service_name_is_flagged_even_when_unreachable():
+    """La fuga es el nombre en el log público de CT, exista o no el servicio."""
+    profile = AssetProfile(host="jenkins.idata.test", source="crt.sh")  # no reachable
+    finding = next(r for r in AssetExposureCheck().evaluate(profile)
+                   if r.id.startswith("internal_service_name_leaked"))
+    assert finding.status == "warning"
+    assert "jenkins" in finding.finding
+
+
+def test_neutral_hostname_is_not_flagged_as_internal():
+    assert not any(r.id.startswith("internal_service_name_leaked")
+                   for r in AssetExposureCheck().evaluate(_reachable(host="www.idata.test")))
+
+
 def test_non_production_asset_exposed():
     results = AssetExposureCheck().evaluate(_reachable("staging.idata.test", title="Panel"))
     finding = next(r for r in results if r.id.startswith("non_production_asset_exposed"))
