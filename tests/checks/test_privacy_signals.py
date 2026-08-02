@@ -143,6 +143,25 @@ def test_privacy_links_ignore_anchors_and_scripts():
     assert find_privacy_policy_links(html, BASE) == []
 
 
+def test_chilean_legal_page_labels_are_recognised():
+    """Regresión de un falso positivo real: un sitio con 'Políticas y Condiciones'
+    (donde vive el tratamiento de datos) se reportaba como 'sin política de
+    privacidad' en severidad high. Las etiquetas legales chilenas se reconocen."""
+    for html in (
+        '<a href="/politicas-y-condiciones">Políticas y Condiciones</a>',
+        '<a href="/aviso-legal">Aviso Legal</a>',
+        '<a href="/x">Aviso de Privacidad</a>',
+    ):
+        assert find_privacy_policy_links(html, BASE), html
+
+
+def test_bare_terms_and_conditions_is_not_a_privacy_policy():
+    """'Términos y Condiciones' a secas no es una política de privacidad: no debe
+    dar por cubierto el deber de información."""
+    html = '<a href="/terminos-y-condiciones">Términos y Condiciones</a>'
+    assert find_privacy_policy_links(html, BASE) == []
+
+
 def test_privacy_links_are_deduplicated():
     html = '<a href="/privacidad">A</a><a href="/privacidad">Privacidad</a>'
     assert len(find_privacy_policy_links(html, BASE)) == 1

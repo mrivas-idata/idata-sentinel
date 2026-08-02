@@ -69,9 +69,15 @@ CONSENT_SIGNATURES = (
     "politica de cookies", "usamos cookies", "utilizamos cookies",
 )
 
+#: Reconoce el enlace a la política de privacidad. Incluye las convenciones
+#: chilenas habituales ("Políticas y Condiciones", "Aviso Legal"): muchos sitios
+#: pequeños ponen el tratamiento de datos ahí y no en una página rotulada
+#: "Privacidad". No incluye "términos y condiciones" a secas —que legalmente no es
+#: una política de privacidad— para no dar por cubierto lo que no lo está.
 _PRIVACY_LINK_PATTERN = re.compile(
     r"(privacidad|privacy|proteccion[-_ ]?de[-_ ]?datos|data[-_ ]?protection|"
-    r"tratamiento[-_ ]?de[-_ ]?datos|politica[-_ ]?de[-_ ]?datos)",
+    r"tratamiento[-_ ]?de[-_ ]?datos|politica[-_ ]?de[-_ ]?datos|"
+    r"politicas?[-_ ]?y[-_ ]?condiciones|aviso[-_ ]?legal|aviso[-_ ]?de[-_ ]?privacidad)",
     re.IGNORECASE,
 )
 
