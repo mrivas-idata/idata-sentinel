@@ -35,6 +35,12 @@ def _mock_certspotter(*names: str, response: httpx.Response | None = None) -> No
     )
 
 
+def _mock_hackertarget(*names, response=None):
+    body = "\n".join(f"{n},1.2.3.4" for n in names)
+    respx.get(url__startswith="https://api.hackertarget.com/").mock(
+        return_value=response if response is not None else httpx.Response(200, text=body))
+
+
 def _zone(extra: dict | None = None) -> dict:
     zone = {
         (APEX, "A"): ("203.0.113.10",),
@@ -63,6 +69,7 @@ def _mock_web(default_body: str = "<html><title>IDATA</title></html>") -> None:
         return_value=_crtsh("www." + APEX, "dev." + APEX)
     )
     _mock_certspotter()
+    _mock_hackertarget()
     respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
         return_value=httpx.Response(200, headers={"Server": "nginx/1.18.0"}, text=default_body)
     )
@@ -133,6 +140,7 @@ async def test_non_production_subdomain_is_flagged(fake_dns):
 async def test_target_is_always_included_even_if_discovery_fails(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(side_effect=httpx.ConnectError("down"))
     _mock_certspotter()
+    _mock_hackertarget()
     respx.get(url__regex=r"https://.*idata\.test/").mock(return_value=httpx.Response(200, text="ok"))
 
     output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
@@ -147,6 +155,7 @@ async def test_a_partial_discovery_is_declared_not_hidden(fake_dns):
     caído el inventario sigue sirviendo, pero deja de ser exhaustivo."""
     respx.get(url__startswith="https://crt.sh/").mock(side_effect=httpx.ReadTimeout("lento"))
     _mock_certspotter("api." + APEX)
+    _mock_hackertarget()
     respx.get(url__regex=r"https://.*idata\.test/").mock(return_value=httpx.Response(200, text="ok"))
 
     output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
@@ -168,6 +177,7 @@ async def test_a_partial_discovery_is_declared_not_hidden(fake_dns):
 async def test_a_total_discovery_failure_says_so(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(side_effect=httpx.ReadTimeout("lento"))
     _mock_certspotter(response=httpx.Response(502))
+    _mock_hackertarget(response=httpx.Response(200, text="API count exceeded"))
     respx.get(url__regex=r"https://.*idata\.test/").mock(return_value=httpx.Response(200, text="ok"))
 
     output = await AssetInventoryModule().run(_params(fake_dns(_zone())))
@@ -175,7 +185,7 @@ async def test_a_total_discovery_failure_says_so(fake_dns):
     warning = next(
         f for f in output.findings if f["id"].startswith("asset_discovery_incomplete")
     )
-    assert "Ningún registro" in warning["finding"]
+    assert "Ninguna fuente" in warning["finding"]
     assert "incompleto" in warning["finding"]
     assert output.artifacts["surface_map"]["discovery_complete"] is False
 
@@ -188,6 +198,7 @@ async def test_truncation_by_the_asset_cap_is_declared(fake_dns):
         return_value=_crtsh(*[f"a{i}.{APEX}" for i in range(30)])
     )
     _mock_certspotter()
+    _mock_hackertarget()
     respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
         return_value=httpx.Response(200, text="ok")
     )
@@ -220,6 +231,7 @@ async def test_sources_are_merged_and_their_origin_recorded(fake_dns):
     es el motivo de consultar dos, no la redundancia."""
     respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh("www." + APEX))
     _mock_certspotter("dev." + APEX, "www." + APEX)
+    _mock_hackertarget()
     respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
         return_value=httpx.Response(200, text="ok")
     )
@@ -247,6 +259,7 @@ async def test_a_complete_discovery_is_marked_as_such(fake_dns):
 async def test_unresolvable_asset_is_inventoried_but_not_probed(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh("gone." + APEX))
     _mock_certspotter()
+    _mock_hackertarget()
     web = respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
         return_value=httpx.Response(200, text="ok")
     )
@@ -264,6 +277,7 @@ async def test_unresolvable_asset_is_inventoried_but_not_probed(fake_dns):
 async def test_falls_back_to_http_and_reports_missing_https(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh())
     _mock_certspotter()
+    _mock_hackertarget()
     respx.get(url__regex=r"https://[^/]*idata\.test/").mock(side_effect=httpx.ConnectError("sin tls"))
     respx.get(url__regex=r"http://[^/]*idata\.test/").mock(return_value=httpx.Response(200, text="ok"))
 
@@ -276,6 +290,7 @@ async def test_falls_back_to_http_and_reports_missing_https(fake_dns):
 async def test_detects_cdn_and_takeover_risk(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh("old." + APEX))
     _mock_certspotter()
+    _mock_hackertarget()
     respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
         return_value=httpx.Response(200, headers={"CF-RAY": "abc"}, text="ok")
     )
@@ -379,6 +394,7 @@ async def test_max_assets_caps_the_inventory(fake_dns):
 async def test_binary_content_type_does_not_break_profiling(fake_dns):
     respx.get(url__startswith="https://crt.sh/").mock(return_value=_crtsh())
     _mock_certspotter()
+    _mock_hackertarget()
     respx.get(url__regex=r"https://[^/]*idata\.test/").mock(
         return_value=httpx.Response(200, headers={"Content-Type": "image/png"}, content=b"\x89PNG\x00")
     )

@@ -57,11 +57,14 @@ MIN_PASSIVE_RATE_LIMIT = 2.0
 
 
 def _build_engine(
-    *, store: ScanStore | None = None, notifiers: list | None = None, rate_limit: float = 2.0
+    *, store: ScanStore | None = None, notifiers: list | None = None, rate_limit: float = 2.0,
+    cache_path: Path | None = None,
 ) -> Engine:
     engine = Engine(rate_limit_seconds=rate_limit)
     engine.register_module(VulnIdentificationModule())
-    engine.register_module(AssetInventoryModule())
+    # Caché de subdominios junto a la base de datos: hace que un re-escaneo no
+    # pierda el inventario cuando las fuentes de CT están caídas.
+    engine.register_module(AssetInventoryModule(cache_path=cache_path))
     engine.register_module(DataPrivacyModule())
     if store is not None:
         engine.register_module(MonitoringModule(store, notifiers=notifiers or []))
@@ -146,7 +149,8 @@ def scan(
         notifiers.append(WebhookNotifier(webhook))
 
     engine = _build_engine(
-        store=store, notifiers=notifiers if record else None, rate_limit=rate_limit
+        store=store, notifiers=notifiers if record else None, rate_limit=rate_limit,
+        cache_path=db.parent / "subdomain_cache.json",
     )
     request = ScanRequest(
         target=target, mode=mode, modules=_resolve_modules(modules), authorization=authorization,
@@ -424,7 +428,10 @@ def monitor_run(
         if record.webhook_url:
             notifiers.append(WebhookNotifier(record.webhook_url))
 
-        engine = _build_engine(store=store, notifiers=notifiers, rate_limit=rate_limit)
+        engine = _build_engine(
+            store=store, notifiers=notifiers, rate_limit=rate_limit,
+            cache_path=db.parent / "subdomain_cache.json",
+        )
         result = await engine.scan(ScanRequest(
             target=record.target, mode=record.mode, modules=_resolve_modules(record.modules)
         ))

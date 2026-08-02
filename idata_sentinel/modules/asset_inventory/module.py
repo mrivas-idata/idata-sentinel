@@ -47,12 +47,20 @@ class AssetInventoryModule:
         max_assets: int = 25,
         discovery_attempts: int = CRT_SH_ATTEMPTS,
         discovery_backoff: float = CRT_SH_BACKOFF_SECONDS,
+        cache_path=None,
     ) -> None:
         self.max_assets = max_assets
         # Inyectables para que los tests ejerciten la ruta de fallo sin dormir:
         # con los valores por defecto, cinco tests sumaban 31 s de espera pura.
         self.discovery_attempts = discovery_attempts
         self.discovery_backoff = discovery_backoff
+        # Caché de subdominios entre corridas (robustez ante caída de las fuentes
+        # de CT). `None` = deshabilitado (por defecto, y en tests que no lo usan).
+        self._cache = None
+        if cache_path is not None:
+            from idata_sentinel.core.subdomain_cache import SubdomainCache
+
+            self._cache = SubdomainCache(cache_path)
 
     async def run(self, params: RunParams) -> ModuleOutput:
         ctx = self._build_context(params)
@@ -121,6 +129,7 @@ class AssetInventoryModule:
                 limit=ctx.max_assets,
                 attempts=self.discovery_attempts,
                 backoff=self.discovery_backoff,
+                cache=self._cache,
             )
         except Exception as e:  # el descubrimiento nunca puede tumbar el módulo
             logger.exception("descubrimiento de subdominios falló para %s", ctx.host)
@@ -144,14 +153,19 @@ class AssetInventoryModule:
         activo" y creyera que esa era toda su superficie.
         """
         responded = [s.name for s in discovery.sources if s.ok]
+        cache_note = (
+            f" Se completó con {discovery.from_cache} activo(s) de escaneos previos "
+            f"(no confirmados en vivo esta vez; se vuelven a perfilar igual)."
+            if discovery.from_cache else ""
+        )
         finding = (
-            f"Ningún registro de Certificate Transparency respondió: {discovery.reason}. "
+            f"Ninguna fuente de descubrimiento respondió: {discovery.reason}.{cache_note} "
             f"El inventario de este escaneo puede estar incompleto."
             if not responded
             else (
-                f"Se consultaron {len(discovery.sources)} registros de Certificate Transparency "
-                f"y respondió {', '.join(responded)}; falló {discovery.reason}. El inventario es "
-                f"utilizable pero no puede presentarse como exhaustivo."
+                f"Se consultaron {len(discovery.sources)} fuentes de descubrimiento "
+                f"y respondió {', '.join(responded)}; falló {discovery.reason}.{cache_note} "
+                f"El inventario es utilizable pero no puede presentarse como exhaustivo."
             )
         )
         return self._check_helper()._result(
