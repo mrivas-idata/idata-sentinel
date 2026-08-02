@@ -198,6 +198,29 @@
   {% else %}
     <p>No se detectaron hallazgos accionables en este escaneo.</p>
   {% endif %}
+
+  {% if cve_findings %}
+  <div class="card" style="margin-top:16px;">
+    <h3>Vulnerabilidades conocidas (CVE) en los componentes detectados</h3>
+    <p class="muted small">
+      Cruce de las versiones expuestas contra bases públicas de CVE. Es un hallazgo
+      <strong>informativo</strong>: indica que la versión instalada figura en el rango afectado por
+      estas vulnerabilidades, pero {{ branding.company_name }} no comprueba su explotabilidad.
+    </p>
+    <table>
+      <thead><tr><th>Componente</th><th>Severidad</th><th>CVE</th></tr></thead>
+      <tbody>
+      {% for f in cve_findings %}
+        <tr>
+          <td style="font-size:8pt;">{{ f.id.split('@')[1] }}</td>
+          <td><span class="badge" style="background: {{ severity_color(f.severity) }}">{{ severity_label(f.severity) | upper }}</span></td>
+          <td style="font-size:8pt;">{{ f.references | join(", ") }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
 </section>
 
 <!-- 3. Semáforo por línea de servicio -->
@@ -355,7 +378,7 @@
   <table>
     <thead><tr><th>ID</th><th>Categoría</th><th>Estado</th><th>Evidencia</th><th>Referencias</th></tr></thead>
     <tbody>
-    {% for f in all_findings %}
+    {% for f in technical_findings %}
       <tr>
         <td style="font-size:7.5pt;">{{ f.id }}</td>
         <td>{{ f.category }}</td>

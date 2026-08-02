@@ -14,6 +14,7 @@ from idata_sentinel.reporting.charts import (
 )
 
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+_STATUS_ORDER = {"fail": 0, "warning": 1, "info": 2, "pass": 3}
 
 # Las 4 líneas del plan maestro §0 — se muestran todas aunque el módulo
 # correspondiente aún no exista (Fases 3-5), para no rediseñar la plantilla después.
@@ -60,6 +61,19 @@ def build_report_context(scan_result: dict, risk: dict, *, report_number: str | 
     for f in actionable:
         severity_counts[f["severity"]] = severity_counts.get(f["severity"], 0) + 1
 
+    # Anexo técnico: todos los hallazgos salvo el aviso de cobertura, ordenados
+    # por severidad y estado. Incluye los informativos (p.ej. CVEs conocidas) que
+    # no penalizan el score pero sí importan al equipo técnico del cliente.
+    technical_findings = sorted(
+        (f for f in all_findings if f is not coverage_notice),
+        key=lambda f: (_STATUS_ORDER.get(f["status"], 9), _SEVERITY_ORDER.get(f["severity"], 5)),
+    )
+    # CVEs conocidas cruzadas contra las versiones detectadas: refuerzo destacado.
+    cve_findings = [
+        f for f in all_findings
+        if f["id"].startswith("cve_informational") and f.get("references")
+    ]
+
     return {
         "report_number": report_number or f"IDS-{uuid.uuid4().hex[:8].upper()}",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -78,6 +92,8 @@ def build_report_context(scan_result: dict, risk: dict, *, report_number: str | 
         "coverage_notice": coverage_notice,
         "top_findings": actionable[:5],
         "all_findings": actionable,
+        "technical_findings": technical_findings,
+        "cve_findings": cve_findings,
         "total_findings": len(actionable),
         "severity_counts": severity_counts,
         "severity_segments": severity_segments(severity_counts),

@@ -59,6 +59,29 @@ def test_render_html_produces_valid_document():
     assert "No evaluado" in html  # secciones de módulos aún no implementados
 
 
+def test_cve_findings_surface_in_the_report_even_though_informational():
+    """Los CVEs conocidos son status=info (no penalizan el score) pero deben
+    aparecer en el informe: son el refuerzo técnico para el cliente."""
+    scan = {
+        "target": "https://x.test", "mode": "passive",
+        "modules": {"vuln_identification": [{
+            "id": "cve_informational@contact-form-7:5.8", "module": "vuln_identification",
+            "category": "Fingerprint", "severity": "high", "likelihood": "low", "status": "info",
+            "confidence": "high", "verification_status": "unverified",
+            "title": "Posibles CVEs conocidas", "finding": "f", "business_impact": "b",
+            "recommendation": "r", "evidence": "e", "references": ["CVE-2023-6449"],
+        }]},
+    }
+    ctx = build_report_context(scan, {"score": 90, "grade": "A",
+                                      "module_scores": {"vuln_identification": 90}, "category_scores": {}})
+    assert len(ctx["cve_findings"]) == 1
+    # aparece en el anexo técnico (todos los hallazgos, no solo accionables)…
+    assert any(f["id"].startswith("cve_informational") for f in ctx["technical_findings"])
+    html = render_html(ctx)
+    assert "CVE-2023-6449" in html
+    assert "contact-form-7:5.8" in html
+
+
 def test_render_html_escapes_untrusted_content():
     malicious = dict(_SAMPLE_SCAN_RESULT)
     malicious["modules"] = {
