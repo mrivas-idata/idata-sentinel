@@ -21,9 +21,13 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from idata_sentinel.core.domains import registrable_domain
 from idata_sentinel.core.http_client import HttpClient
+
+if TYPE_CHECKING:
+    from idata_sentinel.core.subdomain_cache import SubdomainCache
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +44,12 @@ CERTSPOTTER_URL = (
     "https://api.certspotter.com/v1/issuances"
     "?domain={domain}&include_subdomains=true&expand=dns_names"
 )
+
+#: Tercera fuente: HackerTarget (CSV `host,ip`, gratis, sin key). Reduce la
+#: probabilidad de que las tres caigan a la vez —el fallo que dejaba el inventario
+#: vacío—. Su plan gratuito tiene tope diario; al excederlo responde 200 con un
+#: texto de error, que el parser detecta y trata como fuente caída.
+HACKERTARGET_URL = "https://api.hackertarget.com/hostsearch/?q={domain}"
 
 #: Tope de activos a perfilar. Cada uno cuesta consultas DNS + un GET, y el
 #: rate limit del modo pasivo es de >=2s por host (§1.2).
@@ -96,6 +106,9 @@ class DiscoveryResult:
     #: Sin esto el truncado también mentía: sobre un objetivo real los registros
     #: devolvieron 39 nombres y el informe presentaba 25 como si fueran todos.
     total_known: int = 0
+    #: Cuántos de los hosts provienen SOLO del caché (escaneos previos), no
+    #: confirmados por ninguna fuente en vivo en esta corrida.
+    from_cache: int = 0
 
     @property
     def truncated(self) -> int:
@@ -167,6 +180,22 @@ def _certspotter_names(payload: str, domain: str) -> set[str] | None:
     return _collect(raw, domain)
 
 
+def _hackertarget_names(payload: str, domain: str) -> set[str] | None:
+    """CSV `host,ip` por línea. Al exceder el tope diario el servicio responde 200
+    con un texto de error ('API count exceeded…'): se distingue de 'sin
+    subdominios' (respuesta válida vacía) para no dar un 0 en falso ni marcar como
+    caída una respuesta legítima que contenga la palabra 'error' en un host."""
+    text = (payload or "").strip()
+    raw = [line.split(",", 1)[0] for line in text.splitlines() if line.strip()]
+    names = _collect(raw, domain)
+    if names:
+        return names
+    lowered = text.lower()
+    if "api count exceeded" in lowered or "error" in lowered:
+        return None  # mensaje de límite/error: fuente caída, no "sin subdominios"
+    return set()  # respuesta válida sin subdominios del dominio
+
+
 def parse_crtsh(payload: str, domain: str, *, limit: int = DEFAULT_MAX_SUBDOMAINS) -> list[str]:
     names = _crtsh_names(payload, domain)
     return _rank(names, limit) if names else []
@@ -230,6 +259,7 @@ async def discover_subdomains(
     limit: int = DEFAULT_MAX_SUBDOMAINS,
     attempts: int | None = None,
     backoff: float | None = None,
+    cache: "SubdomainCache | None" = None,
 ) -> DiscoveryResult:
     """Nunca lanza: es descubrimiento, no un check. Ante cualquier problema el
     escaneo continúa con el dominio principal, pero el resultado deja constancia
@@ -253,6 +283,7 @@ async def discover_subdomains(
     registries = (
         ("crt.sh", CRT_SH_URL, _crtsh_names),
         ("certspotter", CERTSPOTTER_URL, _certspotter_names),
+        ("hackertarget", HACKERTARGET_URL, _hackertarget_names),
     )
 
     gathered = await asyncio.gather(
@@ -283,17 +314,35 @@ async def discover_subdomains(
         for host in names:
             origins.setdefault(host, []).append(name)
 
-    hosts = _rank(merged, limit)
     responded = [o for o in outcomes if o.ok]
+
+    # Red de seguridad ante la caída total de las fuentes: completar con lo
+    # descubierto en corridas anteriores. El caché aporta el NOMBRE; el módulo lo
+    # vuelve a perfilar, así que un subdominio ya eliminado aparecerá como "no
+    # resuelve" en esta corrida, no como un falso positivo.
+    from_cache = 0
+    if cache is not None:
+        if responded:
+            # Persistir solo lo confirmado en vivo, para no acumular indefinidamente.
+            cache.update(apex, merged)
+        cached = cache.known(apex)
+        only_cached = cached - merged
+        from_cache = len(only_cached)
+        for host in only_cached:
+            origins.setdefault(host, []).append("escaneo previo")
+        merged |= cached
+
+    hosts = _rank(merged, limit)
     failures = [o.reason for o in outcomes if not o.ok]
 
     return DiscoveryResult(
         hosts=hosts,
-        # Basta con que un registro conteste para tener inventario: solo si
-        # ninguno responde el descubrimiento se declara fallido.
-        ok=bool(responded),
+        # Basta con que un registro conteste, o que el caché aporte nombres, para
+        # tener inventario: solo si nada de eso ocurre se declara fallido.
+        ok=bool(responded) or bool(merged),
         reason="; ".join(failures),
         sources=tuple(outcomes),
         host_sources={host: ", ".join(sources) for host, sources in origins.items()},
         total_known=len(merged),
+        from_cache=from_cache,
     )

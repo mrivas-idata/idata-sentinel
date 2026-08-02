@@ -13,3 +13,6 @@ htmlcov/
 
 # Salidas de escaneo y entregables generados (PDFs, JSON, dumps) — no versionar
 out/
+
+# Caché de subdominios entre corridas (artefacto local/volumen)
+subdomain_cache.json

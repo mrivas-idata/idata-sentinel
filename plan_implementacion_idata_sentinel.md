@@ -196,9 +196,19 @@ dejaría pasar justo el caso normal.
   subdominios; con ambas activas, 39 nombres — entre ellos un `dev` servido solo
   por HTTP, un panel `cpanel` y dos tiendas.
 
-  Se consultan en paralelo, no en cascada: dos registros lentos en serie
-  duplicarían la espera, y cada uno ve un subconjunto distinto de certificados,
-  así que la unión aporta más que el respaldo.
+  Se consultan **tres fuentes** en paralelo (crt.sh, certspotter y HackerTarget),
+  no en cascada: fuentes lentas en serie duplicarían la espera, y cada una ve un
+  subconjunto distinto de nombres, así que la unión aporta más que el respaldo.
+  La tercera fuente reduce la probabilidad de que **todas** caigan a la vez —el
+  fallo que dejaba el inventario vacío.
+
+- **Caché entre corridas (`core/subdomain_cache.py`).** Aun con tres fuentes hubo
+  escaneos reales donde todas cayeron simultáneamente. El caché conserva por
+  dominio el mejor inventario conocido y lo usa como red de seguridad cuando las
+  fuentes fallan, para que un re-escaneo no pierda la superficie. No introduce
+  falsos positivos: el caché aporta el **nombre**, que se vuelve a perfilar en la
+  corrida nueva; un subdominio ya eliminado aparecerá como "no resuelve". Se marca
+  qué activos provienen solo del caché (no confirmados en vivo esta vez).
 
   Sigue siendo estrictamente pasivo: es lectura de registros públicos, sin
   adivinar nombres por diccionario.
