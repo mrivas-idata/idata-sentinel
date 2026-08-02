@@ -145,6 +145,22 @@ async def test_complete_strict_csp_passes(make_ctx):
 
 
 @respx.mock
+async def test_csp_without_reporting_is_flagged(make_ctx):
+    results = await _run(make_ctx, {
+        "Content-Security-Policy": "default-src 'self'; script-src 'nonce-abc'"})
+    assert "csp_no_reporting" in _ids(results)
+
+
+@respx.mock
+async def test_csp_with_report_to_is_not_flagged_for_reporting(make_ctx):
+    results = await _run(make_ctx, {
+        "Content-Security-Policy":
+            "default-src 'none'; script-src 'nonce-abc' 'strict-dynamic'; "
+            "object-src 'none'; base-uri 'none'; report-to csp-endpoint"})
+    assert "csp_no_reporting" not in _ids(results)
+
+
+@respx.mock
 async def test_allowlist_csp_without_nonce_is_permissive(make_ctx):
     results = await _run(make_ctx, {
         "Content-Security-Policy":

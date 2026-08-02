@@ -249,6 +249,21 @@ class ModernHeadersCheck(BaseCheck):
                 recommendation="Mantener el nonce único por respuesta y revisar la política ante cada cambio.",
                 evidence=csp[:300], references=("OWASP CSP",),
             ))
+
+        if "report-uri" not in policy and "report-to" not in policy:
+            out.append(self._result(
+                sub_id=self._suffixed("csp_no_reporting", path),
+                severity="info", likelihood="low", status="info",
+                title="La CSP no declara destino de reportes",
+                finding="La política CSP no incluye 'report-uri' ni 'report-to'.",
+                business_impact=(
+                    "Sin reportes, las violaciones de CSP —intentos de XSS bloqueados o recursos que "
+                    "la política rompe— pasan inadvertidas: no hay forma de afinar la política ni de "
+                    "detectar ataques en curso."
+                ),
+                recommendation="Agregar 'report-to' (o 'report-uri') apuntando a un colector de reportes.",
+                evidence=csp[:300], references=("OWASP CSP", "MDN report-to"),
+            ))
         return out
 
     # -- legado -------------------------------------------------------------
