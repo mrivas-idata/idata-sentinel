@@ -18,7 +18,12 @@ from idata_sentinel.core.session import ClientSession, SessionError
 from idata_sentinel.docs import all_modules, module_help
 from idata_sentinel.modules.asset_inventory.module import AssetInventoryModule
 from idata_sentinel.modules.data_privacy.module import DataPrivacyModule
-from idata_sentinel.modules.monitoring.alerts import CollectingNotifier, WebhookNotifier
+from idata_sentinel.modules.monitoring.alerts import (
+    CollectingNotifier,
+    EmailConfig,
+    EmailNotifier,
+    WebhookNotifier,
+)
 from idata_sentinel.modules.monitoring.module import MonitoringModule
 from idata_sentinel.modules.monitoring.scheduler import MonitorScheduler
 from idata_sentinel.modules.vuln_identification.module import VulnIdentificationModule
@@ -32,6 +37,12 @@ monitor_app = typer.Typer(help="Monitoreo continuo: programa re-escaneos y detec
 app.add_typer(monitor_app, name="monitor")
 
 console = Console()
+
+
+def _wide_console() -> Console:
+    """Consola ancha para las tablas de monitoreo: evita que Rich trunque las URLs
+    de los objetivos cuando no hay un TTY que reporte el ancho (p.ej. en tests)."""
+    return Console(width=140)
 
 #: Alias corto (CLI) -> nombre interno del módulo.
 MODULE_ALIASES = {
@@ -340,6 +351,7 @@ def monitor_add(
     mode: str = typer.Option("passive", "--mode", help="passive | audit"),
     modules: str = typer.Option("all", "--modules", help="all | vuln,assets,privacy"),
     webhook: str = typer.Option("", "--webhook", help="URL de webhook para las alertas"),
+    email: str = typer.Option("", "--email", help="Correo del cliente para el digest de cambios"),
     db: Path = typer.Option(DEFAULT_DB_PATH, "--db"),
 ) -> None:
     """Programa re-escaneos periódicos de TARGET."""
@@ -348,9 +360,15 @@ def monitor_add(
         raise typer.Exit(code=1)
 
     record = ScanStore(db).add_monitor(
-        target=target, schedule=schedule, mode=mode, webhook_url=webhook or None, modules=modules
+        target=target, schedule=schedule, mode=mode, webhook_url=webhook or None,
+        modules=modules, notify_email=email or None,
     )
     console.print(f"[green]Monitor creado:[/green] {record.target} ({record.schedule}, modo {record.mode})")
+    if email and EmailConfig.from_env() is None:
+        console.print(
+            "[yellow]Aviso: definiste --email pero no hay SMTP configurado.[/yellow] "
+            "El digest no se enviará hasta definir IDATA_SMTP_HOST y credenciales."
+        )
 
 
 @monitor_app.command("list")
@@ -362,14 +380,53 @@ def monitor_list(db: Path = typer.Option(DEFAULT_DB_PATH, "--db")) -> None:
         return
 
     table = Table(title="Monitores")
-    for column in ("Objetivo", "Cadencia", "Modo", "Último escaneo", "Estado"):
+    for column in ("Objetivo", "Cadencia", "Modo", "Notifica", "Último escaneo", "Estado"):
         table.add_column(column)
     for m in monitors:
+        canales = ", ".join(
+            c for c, on in (("email", m.notify_email), ("webhook", m.webhook_url)) if on
+        ) or "—"
         table.add_row(
-            m.target, m.schedule, m.mode, m.last_run_at or "—",
+            m.target, m.schedule, m.mode, canales, m.last_run_at or "—",
             "[green]activo[/green]" if m.active else "[dim]inactivo[/dim]",
         )
-    console.print(table)
+    _wide_console().print(table)
+
+
+@monitor_app.command("overview")
+def monitor_overview(db: Path = typer.Option(DEFAULT_DB_PATH, "--db")) -> None:
+    """Semáforo de cartera: estado de todos los clientes monitoreados de un vistazo."""
+    from idata_sentinel.modules.monitoring.diff import build_trend
+
+    store = ScanStore(db)
+    monitors = store.list_monitors()
+    if not monitors:
+        console.print("[yellow]Sin monitores configurados.[/yellow]")
+        return
+
+    _grade_style = {"A": "green", "B": "green", "C": "yellow", "D": "red", "F": "bold red"}
+    table = Table(title="Cartera de clientes monitoreados")
+    for column in ("Objetivo", "Score", "Nota", "Tendencia", "Último escaneo"):
+        table.add_column(column)
+
+    for m in sorted(monitors, key=lambda x: x.target):
+        history = store.history(m.target)
+        if not history:
+            table.add_row(m.target, "—", "[dim]sin datos[/dim]", "—", "—")
+            continue
+        trend = build_trend(history)
+        last = history[-1]
+        delta = trend.get("delta", 0)
+        tend = (
+            f"[green]▲ {delta}[/green]" if delta > 0
+            else f"[red]▼ {abs(delta)}[/red]" if delta < 0 else "[dim]=[/dim]"
+        )
+        grade_style = _grade_style.get(last.grade, "white")
+        table.add_row(
+            m.target, str(last.score), f"[{grade_style}]{last.grade}[/{grade_style}]",
+            tend, last.scanned_at[:16],
+        )
+    _wide_console().print(table)
 
 
 @monitor_app.command("remove")
@@ -421,12 +478,17 @@ def monitor_run(
     """Ejecuta los monitores vencidos (servicio `worker` del plan §11.2)."""
     store = ScanStore(db)
 
+    smtp_config = EmailConfig.from_env()
+
     async def _run_scan(record) -> None:
         console.print(f"[cyan]Re-escaneando[/cyan] {record.target}…")
         collector = CollectingNotifier()
         notifiers: list = [collector]
         if record.webhook_url:
             notifiers.append(WebhookNotifier(record.webhook_url))
+        # Digest por correo solo si el cliente tiene email y hay SMTP configurado.
+        if record.notify_email and smtp_config is not None:
+            notifiers.append(EmailNotifier(smtp_config, record.notify_email))
 
         engine = _build_engine(
             store=store, notifiers=notifiers, rate_limit=rate_limit,

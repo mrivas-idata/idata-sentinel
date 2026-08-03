@@ -268,6 +268,25 @@ def test_monitor_add_list_and_remove(db_path):
     assert "Monitor eliminado" in removed.stdout
 
 
+def test_monitor_add_with_email_and_overview(db_path):
+    from idata_sentinel.storage.db import ScanStore
+    runner.invoke(app, [
+        "monitor", "add", "https://cliente.test", "--schedule", "weekly",
+        "--email", "cliente@empresa.cl", "--db", str(db_path)])
+    # el monitor guardó el email…
+    assert ScanStore(db_path).get_monitor("https://cliente.test").notify_email == "cliente@empresa.cl"
+    # …y aparece en list.
+    listed = runner.invoke(app, ["monitor", "list", "--db", str(db_path)])
+    assert "email" in listed.stdout
+
+    # overview con historial muestra score y nota.
+    ScanStore(db_path).record_scan(
+        target="https://cliente.test", mode="passive", score=72, grade="C", findings=[])
+    overview = runner.invoke(app, ["monitor", "overview", "--db", str(db_path)])
+    assert overview.exit_code == 0
+    assert "72" in overview.stdout and "Cartera" in overview.stdout
+
+
 def test_monitor_add_rejects_an_invalid_schedule(db_path):
     result = runner.invoke(
         app, ["monitor", "add", "https://cliente.test", "--schedule", "cuando sea", "--db", str(db_path)]
