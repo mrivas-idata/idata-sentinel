@@ -53,9 +53,14 @@ class MonitoringModule:
         current = params.previous_findings
 
         baseline = await asyncio.to_thread(self.store.baseline, target)
+        # El "anterior" es el último escaneo registrado (la corrida previa). La
+        # detección de cambios se hace contra ÉL, no contra la línea base: de otro
+        # modo un hallazgo que apareció hace tres corridas y sigue ahí se re-anuncia
+        # —y re-alerta— en cada escaneo, y el cliente deja de leer las alertas.
+        previous = await asyncio.to_thread(self.store.latest_scan, target)
         history = await asyncio.to_thread(self.store.history, target)
 
-        if baseline is None:
+        if baseline is None or previous is None:
             return ModuleOutput(
                 findings=[self._no_baseline(target).to_dict()],
                 artifacts={"monitoring": {
@@ -67,8 +72,8 @@ class MonitoringModule:
                 }},
             )
 
-        findings_diff = diff_findings(baseline.findings, current)
-        assets_diff = diff_assets(baseline.surface_map(), self._current_surface(params))
+        findings_diff = diff_findings(previous.findings, current)
+        assets_diff = diff_assets(previous.surface_map(), self._current_surface(params))
         trend = build_trend(history)
 
         alerts = build_alerts(
@@ -79,13 +84,14 @@ class MonitoringModule:
             expiring_certs=[f for f in current if f["id"].split("@")[0] in _CERT_EXPIRY_IDS],
         )
         if self.notifiers and alerts:
-            await dispatch(alerts, self.notifiers)
+            await dispatch(alerts, self.notifiers, target=target, trend=trend)
 
-        results = self._results_for(target, baseline, findings_diff, assets_diff, trend)
+        results = self._results_for(target, previous, findings_diff, assets_diff, trend)
         return ModuleOutput(
             findings=[r.to_dict() for r in results],
             artifacts={"monitoring": {
                 "baseline": {"id": baseline.id, "scanned_at": baseline.scanned_at, "score": baseline.score},
+                "previous": {"id": previous.id, "scanned_at": previous.scanned_at, "score": previous.score},
                 "trend": trend,
                 "findings_diff": findings_diff.to_dict(),
                 "assets_diff": assets_diff.to_dict(),
@@ -114,19 +120,19 @@ class MonitoringModule:
             evidence="", references=("CIS Control 1",),
         )
 
-    def _results_for(self, target, baseline, findings_diff, assets_diff, trend) -> list[CheckResult]:
+    def _results_for(self, target, previous, findings_diff, assets_diff, trend) -> list[CheckResult]:
         out: list[CheckResult] = []
 
         for finding in findings_diff.new:
             severity = finding["severity"]
             out.append(self._check._result(
-                sub_id=f"new_finding_since_baseline@{finding['id']}",
+                sub_id=f"new_finding_since_last_scan@{finding['id']}",
                 severity=severity if severity != "info" else "low",
                 likelihood="medium",
                 status="fail" if severity in ("critical", "high", "medium") else "warning",
-                title=f"Hallazgo nuevo desde la línea base: {finding['title']}",
+                title=f"Hallazgo nuevo desde el escaneo anterior: {finding['title']}",
                 finding=(
-                    f"'{finding['title']}' no existía en el escaneo base del {baseline.scanned_at[:10]} "
+                    f"'{finding['title']}' no existía en el escaneo anterior del {previous.scanned_at[:10]} "
                     f"y aparece ahora."
                 ),
                 business_impact=(
@@ -183,7 +189,7 @@ class MonitoringModule:
             out.append(self._check._result(
                 sub_id=f"findings_resolved@{target}",
                 severity="info", likelihood="low", status="pass",
-                title=f"{len(findings_diff.resolved)} hallazgo(s) resuelto(s) desde la línea base",
+                title=f"{len(findings_diff.resolved)} hallazgo(s) resuelto(s) desde el escaneo anterior",
                 finding="Ya no se observan: "
                         + ", ".join(f["title"] for f in findings_diff.resolved[:10]),
                 business_impact="Evidencia objetiva de mejora para reportar a la dirección.",
@@ -206,10 +212,10 @@ class MonitoringModule:
 
         if not out:
             out.append(self._check._result(
-                sub_id=f"no_changes_since_baseline@{target}",
+                sub_id=f"no_changes_since_last_scan@{target}",
                 severity="info", likelihood="low", status="pass",
-                title="Sin cambios respecto de la línea base",
-                finding=f"No se detectaron hallazgos nuevos ni activos nuevos desde el {baseline.scanned_at[:10]}.",
+                title="Sin cambios respecto del escaneo anterior",
+                finding=f"No se detectaron hallazgos nuevos ni activos nuevos desde el {previous.scanned_at[:10]}.",
                 business_impact="La postura de seguridad se mantiene estable.",
                 recommendation="Mantener la cadencia de monitoreo.",
                 evidence="", references=("Monitoreo continuo",),

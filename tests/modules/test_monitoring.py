@@ -9,8 +9,11 @@ from idata_sentinel.core.http_client import HttpClient
 from idata_sentinel.core.rate_limiter import RateLimiter
 from idata_sentinel.modules.monitoring.alerts import (
     CollectingNotifier,
+    EmailConfig,
+    EmailNotifier,
     WebhookNotifier,
     build_alerts,
+    build_digest,
     dispatch,
 )
 from idata_sentinel.modules.monitoring.diff import (
@@ -262,6 +265,71 @@ async def test_dispatch_sends_every_alert_to_every_notifier():
     assert len(a.sent) == len(b.sent) == 2
 
 
+# -- digest por correo -----------------------------------------------------
+
+
+def test_email_config_from_env_is_none_without_host():
+    assert EmailConfig.from_env(env={}) is None
+
+
+def test_email_config_from_env_reads_smtp_settings():
+    cfg = EmailConfig.from_env(env={
+        "IDATA_SMTP_HOST": "smtp.test", "IDATA_SMTP_PORT": "465",
+        "IDATA_SMTP_USER": "u@test", "IDATA_SMTP_PASSWORD": "p", "IDATA_SMTP_FROM": "from@test",
+    })
+    assert (cfg.host, cfg.port, cfg.sender) == ("smtp.test", 465, "from@test")
+
+
+def test_build_digest_summarises_all_alerts_in_one_message():
+    alerts = build_alerts(
+        target=TARGET,
+        findings_diff=diff_findings([], [_f("cert_expired", severity="critical", title="Cert vencido")]),
+        assets_diff=AssetsDiff(new_assets=["dev.cliente.test"]), trend={"delta": -12, "previous": 80, "current": 68},
+    )
+    subject, text, html = build_digest(TARGET, alerts, {"delta": -12, "previous": 80, "current": 68})
+    assert "CRÍTICO" in subject and "cliente.test" in subject
+    assert "Cert vencido" in text and "dev.cliente.test" in text
+    assert "80" in text and "68" in text          # tendencia del score
+    assert "<html" not in html and "<div" in html  # cuerpo HTML válido
+
+
+async def test_email_notifier_sends_one_digest_for_all_alerts():
+    captured = []
+
+    def _fake_send(message):
+        captured.append(message)
+
+    notifier = EmailNotifier(
+        EmailConfig("smtp.test", 587, "u", "p", "from@test"),
+        recipient="cliente@test", sender_fn=_fake_send,
+    )
+    alerts = build_alerts(
+        target=TARGET,
+        findings_diff=diff_findings([], [_f("x", severity="critical")]),
+        assets_diff=AssetsDiff(new_assets=["dev.cliente.test"]), trend={"delta": 0},
+    )
+    # dispatch enruta: una llamada de digest, no una por alerta.
+    delivered = await dispatch(alerts, [notifier], target=TARGET, trend={"delta": 0})
+
+    assert delivered == 1
+    assert len(captured) == 1                       # UN correo con todo
+    assert captured[0]["To"] == "cliente@test"
+
+
+async def test_email_notifier_failure_never_raises():
+    def _boom(message):
+        raise RuntimeError("smtp caído")
+
+    notifier = EmailNotifier(
+        EmailConfig("smtp.test", 587, "u", "p", "from@test"),
+        recipient="cliente@test", sender_fn=_boom,
+    )
+    alert = build_alerts(
+        target=TARGET, findings_diff=diff_findings([], [_f("x", severity="critical")]),
+        assets_diff=AssetsDiff(), trend={"delta": 0})
+    assert await notifier.send_digest(TARGET, alert, {}) is False
+
+
 # -- runner ----------------------------------------------------------------
 
 
@@ -273,13 +341,32 @@ async def test_first_scan_reports_baseline_creation(store):
     assert output.artifacts["monitoring"]["baseline"] is None
 
 
-async def test_new_finding_since_baseline_is_reported(store):
+async def test_new_finding_since_last_scan_is_reported(store):
     store.record_scan(target=TARGET, mode="passive", score=90, grade="A", findings=[_f("a")])
     output = await MonitoringModule(store).run(_params(findings=[_f("a"), _f("b")]))
 
-    new = next(f for f in output.findings if f["id"].startswith("new_finding_since_baseline"))
+    new = next(f for f in output.findings if f["id"].startswith("new_finding_since_last_scan"))
     assert new["severity"] == "high"
     assert new["recommendation"] == "Corregir"
+
+
+async def test_persistent_finding_does_not_re_alert_each_run(store):
+    """Regresión del bug de cadencia: el diff era contra la LÍNEA BASE, así que un
+    hallazgo que persistía se re-anunciaba y re-alertaba en cada corrida. Ahora el
+    diff es contra el escaneo ANTERIOR: si ya estaba, no vuelve a alertar."""
+    # Corrida 1 (baseline) tenía [a]; corrida 2 introdujo [a, b] (b es nuevo, alertó).
+    # Mismo score en ambas para aislar el chequeo de findings (sin alerta de tendencia).
+    store.record_scan(target=TARGET, mode="passive", score=80, grade="B", findings=[_f("a")])
+    store.record_scan(target=TARGET, mode="passive", score=80, grade="B",
+                      findings=[_f("a"), _f("b", severity="critical")])
+    # Corrida 3: sigue [a, b]. b ya no es "nuevo" respecto de la corrida anterior.
+    notifier = CollectingNotifier()
+    output = await MonitoringModule(store, notifiers=[notifier]).run(
+        _params(findings=[_f("a"), _f("b", severity="critical")]))
+
+    assert not any(f["id"].startswith("new_finding_since_last_scan") for f in output.findings)
+    assert notifier.sent == []  # no re-alerta lo ya conocido
+    assert any(f["id"].startswith("no_changes_since_last_scan") for f in output.findings)
 
 
 async def test_resolved_findings_are_reported_as_a_pass(store):
@@ -333,7 +420,7 @@ async def test_stable_posture_reports_no_changes(store):
     output = await MonitoringModule(store).run(_params(findings=[_f("a")]))
 
     assert len(output.findings) == 1
-    assert output.findings[0]["id"].startswith("no_changes_since_baseline")
+    assert output.findings[0]["id"].startswith("no_changes_since_last_scan")
     assert output.findings[0]["status"] == "pass"
 
 

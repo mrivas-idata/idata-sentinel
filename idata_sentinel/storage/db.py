@@ -41,14 +41,15 @@ CREATE TABLE IF NOT EXISTS scans (
 CREATE INDEX IF NOT EXISTS idx_scans_target ON scans(target, scanned_at);
 
 CREATE TABLE IF NOT EXISTS monitors (
-    target      TEXT PRIMARY KEY,
-    schedule    TEXT NOT NULL,
-    mode        TEXT NOT NULL DEFAULT 'passive',
-    webhook_url TEXT,
-    created_at  TEXT NOT NULL,
-    last_run_at TEXT,
-    active      INTEGER NOT NULL DEFAULT 1,
-    modules     TEXT NOT NULL DEFAULT 'all'
+    target       TEXT PRIMARY KEY,
+    schedule     TEXT NOT NULL,
+    mode         TEXT NOT NULL DEFAULT 'passive',
+    webhook_url  TEXT,
+    created_at   TEXT NOT NULL,
+    last_run_at  TEXT,
+    active       INTEGER NOT NULL DEFAULT 1,
+    modules      TEXT NOT NULL DEFAULT 'all',
+    notify_email TEXT
 );
 """
 
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS monitors (
 _MIGRATIONS = (
     ("monitors", "modules", "TEXT NOT NULL DEFAULT 'all'"),
     ("scans", "encrypted", "INTEGER NOT NULL DEFAULT 0"),
+    ("monitors", "notify_email", "TEXT"),
 )
 
 SCHEDULES = {"daily": 1, "weekly": 7, "monthly": 30}
@@ -93,6 +95,7 @@ class MonitorRecord:
     last_run_at: str | None
     active: bool
     modules: str = "all"
+    notify_email: str | None = None
 
     def is_due(self, *, now: str) -> bool:
         if not self.active:
@@ -233,27 +236,30 @@ class ScanStore:
         webhook_url: str | None = None,
         created_at: str | None = None,
         modules: str = "all",
+        notify_email: str | None = None,
     ) -> MonitorRecord:
         if schedule not in SCHEDULES:
             raise ValueError(f"Cadencia inválida: {schedule!r}. Usa una de {sorted(SCHEDULES)}.")
         created_at = created_at or utcnow()
         with self._connect() as conn:
             conn.execute(
-                "INSERT INTO monitors (target, schedule, mode, webhook_url, created_at, active, modules)"
-                " VALUES (?, ?, ?, ?, ?, 1, ?)"
+                "INSERT INTO monitors (target, schedule, mode, webhook_url, created_at, active,"
+                " modules, notify_email) VALUES (?, ?, ?, ?, ?, 1, ?, ?)"
                 " ON CONFLICT(target) DO UPDATE SET schedule = excluded.schedule,"
                 " mode = excluded.mode, webhook_url = excluded.webhook_url,"
-                " modules = excluded.modules, active = 1",
-                (target, schedule, mode, webhook_url, created_at, modules),
+                " modules = excluded.modules, notify_email = excluded.notify_email, active = 1",
+                (target, schedule, mode, webhook_url, created_at, modules, notify_email),
             )
         return self.get_monitor(target)  # type: ignore[return-value]
 
     def _row_to_monitor(self, row: sqlite3.Row) -> MonitorRecord:
+        keys = row.keys()
         return MonitorRecord(
             target=row["target"], schedule=row["schedule"], mode=row["mode"],
             webhook_url=row["webhook_url"], created_at=row["created_at"],
             last_run_at=row["last_run_at"], active=bool(row["active"]),
-            modules=row["modules"] if "modules" in row.keys() else "all",
+            modules=row["modules"] if "modules" in keys else "all",
+            notify_email=row["notify_email"] if "notify_email" in keys else None,
         )
 
     def get_monitor(self, target: str) -> MonitorRecord | None:
