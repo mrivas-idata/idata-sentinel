@@ -34,6 +34,33 @@ _SAMPLE_RISK = {
 }
 
 
+def test_report_states_what_was_observed_not_only_its_impact():
+    """El campo `finding` debe llegar al informe entregado.
+
+    Regresión: la plantilla renderizaba título, impacto y recomendación, pero no
+    `finding` — el único campo que dice *qué se midió*. Dos consecuencias reales:
+    un "Formulario solicita datos sensibles" no decía **cuál** categoría se
+    detectó, y el descargo de que IDATA no comprueba explotabilidad, que vive en
+    el `finding` de los componentes con CVE, no se le comunicaba al cliente en
+    ninguna parte del documento que firma.
+    """
+    scan = {
+        "target": "https://x.test", "mode": "passive",
+        "modules": {"data_privacy": [{
+            "id": "sensitive_data_collected@/#form0", "module": "data_privacy",
+            "category": "Datos Personales", "severity": "high", "likelihood": "high",
+            "status": "fail", "confidence": "high", "verification_status": "unverified",
+            "title": "Formulario solicita datos sensibles en /",
+            "finding": "Se detectaron campos de categorías especialmente protegidas: socioeconomico.",
+            "business_impact": "b", "recommendation": "r", "evidence": "e", "references": [],
+        }]},
+    }
+    ctx = build_report_context(scan, {"score": 54, "grade": "F",
+                                      "module_scores": {"data_privacy": 54}, "category_scores": {}})
+    html = render_html(ctx)
+    assert "categorías especialmente protegidas: socioeconomico" in html
+
+
 def test_build_report_context_includes_expected_fields():
     ctx = build_report_context(_SAMPLE_SCAN_RESULT, _SAMPLE_RISK)
 

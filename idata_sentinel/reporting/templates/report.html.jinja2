@@ -278,6 +278,7 @@
         <span class="badge" style="background: {{ severity_color(f.severity) }}">{{ severity_label(f.severity) | upper }}</span>
         <span class="muted small">{{ f.category }}</span>
         <p class="finding-title">{{ f.title }}</p>
+        <p><strong>Qué se observó:</strong> {{ f.finding }}</p>
         <p><strong>Por qué importa:</strong> {{ f.business_impact }}</p>
         <p><strong>Qué hacer:</strong> {{ f.recommendation }}</p>
       </div>
