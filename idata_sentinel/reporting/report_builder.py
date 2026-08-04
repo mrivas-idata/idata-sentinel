@@ -71,7 +71,7 @@ def build_report_context(scan_result: dict, risk: dict, *, report_number: str | 
     # CVEs conocidas cruzadas contra las versiones detectadas: refuerzo destacado.
     cve_findings = [
         f for f in all_findings
-        if f["id"].startswith("cve_informational") and f.get("references")
+        if f["id"].startswith("vulnerable_component") and f.get("references")
     ]
 
     return {

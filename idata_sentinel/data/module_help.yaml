@@ -25,7 +25,7 @@
     - "tls_legacy_protocol — se acepta TLS 1.0/1.1, criptografía rota."
     - "csp_missing_base_uri — la CSP existe pero se evade inyectando una etiqueta <base>."
     - "cors_wildcard_with_credentials — cualquier origen podría leer datos autenticados."
-    - "cve_informational — versión con CVEs publicadas. Nunca se comprueba explotabilidad."
+    - "vulnerable_component — la versión instalada cae en el rango afectado por CVEs publicadas. Penaliza la nota con la severidad del propio CVE; nunca se comprueba explotabilidad."
   legal: >-
     Todos los checks son observacionales. No se prueban credenciales, no se
     inyecta nada y jamás se explota una CVE: solo se reporta la versión que el

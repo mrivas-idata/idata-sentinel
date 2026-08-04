@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from urllib.parse import urljoin, urlparse
 
-from idata_sentinel.checks.tech_fingerprint import cve_matches, cve_severity
+from idata_sentinel.checks.tech_fingerprint import cve_result_kwargs
 from idata_sentinel.core.check_base import BaseCheck, CheckResult
 from idata_sentinel.modules.vuln_identification.context import ScanContext
 
@@ -195,23 +195,7 @@ class JavaScriptCheck(BaseCheck):
         return out
 
     def _cve_for_library(self, slug: str, version: str) -> list[CheckResult]:
-        out: list[CheckResult] = []
-        for entry in cve_matches(slug, version):
-            cve_ids = entry.get("cve_ids", [])
-            out.append(self._result(
-                sub_id=f"cve_informational@{slug}:{version}",
-                severity=cve_severity(entry.get("cvss_severity", "low")),
-                likelihood="low", status="info",
-                title=f"Posibles CVEs conocidas para {slug} {version}",
-                finding=(
-                    f"Versión potencialmente afectada por CVEs conocidas ({', '.join(cve_ids)}). "
-                    "Hallazgo informativo, no verificado; IDATA Sentinel no comprueba explotabilidad."
-                ),
-                business_impact=entry.get("title", "Ver referencias CVE."),
-                recommendation=f"Actualizar {slug} a una versión parchada.",
-                evidence=f"{slug} {version}", references=tuple(cve_ids),
-            ))
-        return out
+        return [self._result(**kw) for kw in cve_result_kwargs(slug, version)]
 
     # -- descargando el JS del propio sitio (acotado) ----------------------
 

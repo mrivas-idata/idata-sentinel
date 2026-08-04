@@ -1559,3 +1559,71 @@
   title: 'Akismet Anti-spam: Spam Protection [akismet] < 2.0.2'
   cvss_severity: medium
   source: wpvulnerability
+
+# --- Curadas por IDATA (sin `source`: el sync no las toca) --------------------
+#
+# Las versiones van entre comillas a propósito: sin ellas YAML lee `4.10` como el
+# float 4.1 y el rango quedaría corto justo en las versiones que importan.
+- product: oxygen
+  min_version: '0'
+  max_version: '4.10'
+  cve_ids:
+  - CVE-2024-31380
+  title: 'Oxygen Builder: inyección de código que deriva en ejecución remota (RCE)
+    para usuarios con permiso de edición. El fabricante rechazó el reporte y no ha
+    publicado versión corregida.'
+  cvss_severity: critical
+  unpatched: true
+- product: piotnetforms
+  min_version: '0'
+  max_version: '2.1.41'
+  cve_ids:
+  - CVE-2026-4883
+  title: 'Piotnet Forms: subida de archivos arbitrarios sin autenticación por lista
+    negra de extensiones incompleta; permite ejecución remota de código.'
+  cvss_severity: critical
+  unauthenticated: true
+- product: piotnetforms-pro
+  min_version: '0'
+  max_version: '2.1.41'
+  cve_ids:
+  - CVE-2026-4883
+  title: 'Piotnet Forms Pro: comparte el motor de formularios afectado por la subida
+    de archivos arbitrarios sin autenticación.'
+  cvss_severity: critical
+  unauthenticated: true
+- product: click-to-chat-for-whatsapp
+  min_version: '0'
+  max_version: '4.39'
+  cve_ids:
+  - CVE-2026-7795
+  title: 'Click to Chat: XSS almacenado a través del parámetro ''num'' del shortcode
+    [chat].'
+  cvss_severity: medium
+- product: WordPress
+  min_version: '7.0'
+  max_version: '7.0.2'
+  cve_ids:
+  - wp2shell
+  title: 'WordPress: cadena de dos fallas que permite ejecutar código en una
+    instalación por defecto sin autenticación. Corregida en 6.8.6, 6.9.5 y 7.0.2.'
+  cvss_severity: critical
+  unauthenticated: true
+- product: WordPress
+  min_version: '6.9'
+  max_version: '6.9.5'
+  cve_ids:
+  - wp2shell
+  title: 'WordPress: cadena de dos fallas que permite ejecutar código en una
+    instalación por defecto sin autenticación. Corregida en 6.8.6, 6.9.5 y 7.0.2.'
+  cvss_severity: critical
+  unauthenticated: true
+- product: WordPress
+  min_version: '6.8'
+  max_version: '6.8.6'
+  cve_ids:
+  - wp2shell
+  title: 'WordPress: cadena de dos fallas que permite ejecutar código en una
+    instalación por defecto sin autenticación. Corregida en 6.8.6, 6.9.5 y 7.0.2.'
+  cvss_severity: critical
+  unauthenticated: true

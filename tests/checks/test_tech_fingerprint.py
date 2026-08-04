@@ -115,11 +115,51 @@ async def test_cve_layer_matches_components_by_slug(make_ctx, monkeypatch):
     respx.get(ROOT).mock(return_value=_resp(body))
 
     results = await TechFingerprintCheck().run(make_ctx())
-    cve = next(r for r in results if r.id.startswith("cve_informational@revslider"))
-    assert cve.status == "info"              # nunca 'fail': no se verificó explotabilidad
-    assert cve.likelihood == "low"           # fijo (plan §2.4)
-    assert cve.severity == "medium"          # 'high' de CVSS degradado a máx. medium
+    cve = next(r for r in results if r.id.startswith("vulnerable_component@revslider"))
+    # Accionable: correr una versión dentro del rango afectado es un hecho medido,
+    # aunque no se haya comprobado explotabilidad. Esto último se refleja en
+    # `confidence`, no rebajando la severidad ni sacándolo del score.
+    assert cve.status == "fail"
+    assert cve.severity == "high"            # la del CVE, sin degradar
+    assert cve.confidence == "medium"        # deducción de una sola señal
+    assert cve.likelihood == "medium"        # exige autenticación mientras no se diga lo contrario
     assert "CVE-TEST-0001" in cve.references
+    assert "no comprueba explotabilidad" in cve.finding
+
+
+@respx.mock
+async def test_unauthenticated_cve_raises_likelihood(make_ctx, monkeypatch):
+    """Sin credenciales previas, cualquiera puede alcanzar la falla."""
+    monkeypatch.setattr(tf, "_load_cve_hints", lambda: [{
+        "product": "revslider", "min_version": "0", "max_version": "6.7.41",
+        "cve_ids": ["CVE-TEST-0003"], "title": "Ejemplo", "cvss_severity": "critical",
+        "unauthenticated": True,
+    }])
+    respx.get(ROOT).mock(return_value=_resp(
+        '<link href="/wp-content/plugins/revslider/x.css?ver=6.7.40">'))
+
+    results = await TechFingerprintCheck().run(make_ctx())
+    cve = next(r for r in results if r.id.startswith("vulnerable_component@revslider"))
+    assert (cve.severity, cve.likelihood) == ("critical", "high")
+
+
+@respx.mock
+async def test_unpatched_cve_does_not_recommend_updating(make_ctx, monkeypatch):
+    """Sin versión corregida, "actualizar" no es una remediación y decirlo engaña
+    al cliente: el riesgo no baja hasta aislar o retirar el componente."""
+    monkeypatch.setattr(tf, "_load_cve_hints", lambda: [{
+        "product": "revslider", "min_version": "0", "max_version": "6.7.41",
+        "cve_ids": ["CVE-TEST-0004"], "title": "Ejemplo", "cvss_severity": "critical",
+        "unpatched": True,
+    }])
+    respx.get(ROOT).mock(return_value=_resp(
+        '<link href="/wp-content/plugins/revslider/x.css?ver=6.7.40">'))
+
+    results = await TechFingerprintCheck().run(make_ctx())
+    cve = next(r for r in results if r.id.startswith("vulnerable_component@revslider"))
+    assert "sin parche disponible" in cve.title
+    assert "No hay versión corregida" in cve.recommendation
+    assert "Actualizar" not in cve.recommendation
 
 
 @respx.mock
@@ -133,4 +173,4 @@ async def test_cve_layer_respects_version_ranges(make_ctx, monkeypatch):
     respx.get(ROOT).mock(return_value=_resp(body))
 
     results = await TechFingerprintCheck().run(make_ctx())
-    assert not any(r.id.startswith("cve_informational") for r in results)
+    assert not any(r.id.startswith("vulnerable_component") for r in results)

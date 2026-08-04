@@ -12,7 +12,7 @@ likelihood_multipliers:
   medium: 0.7
   low: 0.4
 
-# Retorno decreciente sobre la acumulación de hallazgos.
+# Retorno decreciente sobre la acumulación de hallazgos, **por clase de severidad**.
 #
 # Sumar linealmente todos los pesos tenía dos efectos indeseados: el score global
 # quedaba siempre por debajo del peor subscore de módulo (porque sumaba las
@@ -20,9 +20,23 @@ likelihood_multipliers:
 # En la práctica todos los escaneos reales daban F, y una nota que siempre dice lo
 # mismo no informa nada — menos aún siendo el titular del resumen ejecutivo (§8.2).
 #
-# Con retorno decreciente los hallazgos se ordenan por peso y el k-ésimo aporta
-# `peso × decay^(k-1)`: los peores dominan la nota y una cola larga de hallazgos
-# `low` ya no equivale a un `critical`. 1.0 restaura la suma lineal anterior.
+# Con retorno decreciente el k-ésimo hallazgo aporta `peso × decay^(k-1)`: los
+# peores dominan la nota y una cola larga de hallazgos `low` no equivale a un
+# `critical`. 1.0 restaura la suma lineal anterior.
+#
+# El decay se aplica **dentro de cada severidad**, no sobre la lista global. Con
+# una sola cuenta global el hallazgo número 10 valía ya el 7,5% de su peso y el
+# número 20 el 0,2%, así que la cola se evaporaba: en un escaneo real, quince
+# hallazgos —DNSSEC, CAA, SPF en softfail, contenido mixto, SRI, versiones
+# expuestas— sumaban **1 punto entre todos**. El efecto perverso es que "no falta
+# ninguna cabecera de seguridad" y "faltan las ocho" daban prácticamente la misma
+# nota, cuando la ausencia sistemática de una capa es justamente lo que distingue
+# a un sitio endurecido de uno que nunca fue configurado.
+#
+# Por clase, cada severidad acumula su propia serie geométrica y queda acotada en
+# `peso / (1 - decay)` = peso × 4: como máximo 12 puntos por los `low`, 32 por los
+# `medium`, 60 por los `high`. Se preserva la propiedad que motivó el decay —una
+# cola de `low` nunca hunde la nota como un `critical`— sin que desaparezca.
 accumulation_decay: 0.75
 
 # Techo de nota según la peor severidad observada, para que el retorno decreciente

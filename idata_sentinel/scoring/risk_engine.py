@@ -76,8 +76,19 @@ def _score_from_findings(findings: list[dict], weights: dict) -> int:
         return 100
 
     decay = weights.get("accumulation_decay", 1.0)
-    ordered = sorted((_finding_weight(f, weights) for f in actionable), reverse=True)
-    penalty = sum(weight * (decay**position) for position, weight in enumerate(ordered))
+
+    # El retorno decreciente se cuenta por separado dentro de cada severidad (ver
+    # `weights.yaml`): con una única cuenta global la cola larga se evaporaba y
+    # "faltan las ocho cabeceras" puntuaba casi igual que "falta una".
+    by_severity: dict[str, list[float]] = {}
+    for finding in actionable:
+        by_severity.setdefault(finding["severity"], []).append(_finding_weight(finding, weights))
+
+    penalty = sum(
+        weight * (decay**position)
+        for group in by_severity.values()
+        for position, weight in enumerate(sorted(group, reverse=True))
+    )
 
     score = max(0, round(100 - penalty))
     return min(score, _severity_cap(actionable, weights))

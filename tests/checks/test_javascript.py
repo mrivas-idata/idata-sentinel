@@ -104,8 +104,9 @@ async def test_library_version_detected_and_cve_wired(make_ctx, monkeypatch):
     results = await JavaScriptCheck().run(make_ctx())
     ids = _ids(results)
     assert "js_library_detected" in ids
-    cve = next(r for r in results if r.id.startswith("cve_informational@jquery"))
-    assert "CVE-TEST-JQ" in cve.references and cve.status == "info"
+    cve = next(r for r in results if r.id.startswith("vulnerable_component@jquery"))
+    assert "CVE-TEST-JQ" in cve.references and cve.status == "fail"
+    assert cve.severity == "medium"  # la del CVE; antes se degradaba a 'low'
 
 
 # -- secretos y source maps (fetch del JS del sitio) ------------------------

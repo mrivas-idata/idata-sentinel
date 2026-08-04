@@ -59,24 +59,30 @@ def test_render_html_produces_valid_document():
     assert "No evaluado" in html  # secciones de módulos aún no implementados
 
 
-def test_cve_findings_surface_in_the_report_even_though_informational():
-    """Los CVEs conocidos son status=info (no penalizan el score) pero deben
-    aparecer en el informe: son el refuerzo técnico para el cliente."""
+def test_cve_findings_surface_in_the_report():
+    """Los componentes con CVE conocida son accionables y llevan bloque propio.
+
+    Regresión: el selector del informe filtraba por el prefijo `cve_informational`.
+    Al renombrar el hallazgo, el bloque de CVEs del PDF habría quedado vacío sin
+    que ningún test lo notara — justo la sección que sostiene el argumento técnico
+    frente al cliente.
+    """
     scan = {
         "target": "https://x.test", "mode": "passive",
         "modules": {"vuln_identification": [{
-            "id": "cve_informational@contact-form-7:5.8", "module": "vuln_identification",
-            "category": "Fingerprint", "severity": "high", "likelihood": "low", "status": "info",
-            "confidence": "high", "verification_status": "unverified",
-            "title": "Posibles CVEs conocidas", "finding": "f", "business_impact": "b",
-            "recommendation": "r", "evidence": "e", "references": ["CVE-2023-6449"],
+            "id": "vulnerable_component@contact-form-7:5.8", "module": "vuln_identification",
+            "category": "Fingerprint", "severity": "high", "likelihood": "medium", "status": "fail",
+            "confidence": "medium", "verification_status": "unverified",
+            "title": "contact-form-7 5.8 con vulnerabilidad conocida", "finding": "f",
+            "business_impact": "b", "recommendation": "r", "evidence": "e",
+            "references": ["CVE-2023-6449"],
         }]},
     }
-    ctx = build_report_context(scan, {"score": 90, "grade": "A",
-                                      "module_scores": {"vuln_identification": 90}, "category_scores": {}})
+    ctx = build_report_context(scan, {"score": 74, "grade": "C",
+                                      "module_scores": {"vuln_identification": 74}, "category_scores": {}})
     assert len(ctx["cve_findings"]) == 1
-    # aparece en el anexo técnico (todos los hallazgos, no solo accionables)…
-    assert any(f["id"].startswith("cve_informational") for f in ctx["technical_findings"])
+    # y además cuenta como hallazgo accionable, que es lo que antes no ocurría
+    assert any(f["id"].startswith("vulnerable_component") for f in ctx["all_findings"])
     html = render_html(ctx)
     assert "CVE-2023-6449" in html
     assert "contact-form-7:5.8" in html

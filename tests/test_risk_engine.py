@@ -85,13 +85,54 @@ def test_many_low_findings_never_reach_failing_grade():
 
 
 def test_grade_d_band():
-    """60-69 = D: dos `high` más un `medium` dan 69."""
+    """60-69 = D: dos `high` más un `medium` dan 66.
+
+    El `medium` arranca su propia serie (aporta sus 8 puntos íntegros) en vez de
+    heredar el decay de los dos `high` que lo preceden, que es lo que antes lo
+    dejaba en 4,5 puntos y la nota en 69.
+    """
     findings = [
         _f("a", severity="high"), _f("b", severity="high"),
         _f("c", severity="medium", likelihood="high"),
     ]
     risk = calculate({"vuln_identification": findings})
-    assert (risk.score, risk.grade) == (69, "D")
+    assert (risk.score, risk.grade) == (66, "D")
+
+
+def test_decay_is_counted_per_severity_not_globally(monkeypatch):
+    """Un hallazgo aporta lo mismo esté solo o detrás de una cola de otra clase.
+
+    Con una sola cuenta global el hallazgo nº 10 valía ya el 7,5% de su peso y el
+    nº 20 el 0,2%: quince hallazgos reales sumaban 1 punto entre todos, y "faltan
+    las ocho cabeceras" puntuaba casi igual que "falta una". Contando por clase,
+    la cola de `low` agota su propia serie sin descontar el `medium`.
+
+    Los techos por severidad se anulan para poder observarlo: con ellos activos el
+    score se satura en 89 y el efecto queda invisible — el mismo motivo por el que
+    `test_accumulation_has_diminishing_returns` se mide sobre `low`.
+    """
+    import idata_sentinel.scoring.risk_engine as engine
+
+    weights = {**engine._load_weights(), "severity_caps": {}}
+    monkeypatch.setattr(engine, "_load_weights", lambda: weights)
+
+    lows = [_f(f"l{i}", severity="low", likelihood="high") for i in range(10)]
+    medium = _f("m", severity="medium", likelihood="high")
+
+    aporte_solo = 100 - calculate({"m": [medium]}).score
+    aporte_tras_la_cola = calculate({"m": lows}).score - calculate({"m": [*lows, medium]}).score
+
+    assert aporte_solo == aporte_tras_la_cola == 8
+
+
+def test_each_severity_class_is_capped_by_its_own_series():
+    """`peso / (1 - decay)` = peso × 4 acota cada clase.
+
+    Es lo que impide que la corrección anterior se pase de largo: por muchos
+    `low` que se acumulen, entre todos no pueden restar más de 12 puntos.
+    """
+    muchos_low = [_f(f"l{i}", severity="low", likelihood="high") for i in range(200)]
+    assert calculate({"m": muchos_low}).score >= 88
 
 
 def test_score_never_goes_below_zero():

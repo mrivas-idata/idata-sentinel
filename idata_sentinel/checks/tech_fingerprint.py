@@ -1,4 +1,4 @@
-"""Fingerprint + CVEs informativas (plan_implementacion_escaneo_vulnerabilidades.md §2.4).
+"""Fingerprint + cruce con CVEs conocidas (plan_implementacion_escaneo_vulnerabilidades.md §2.4).
 
 Fingerprint por firmas propias (headers/HTML/meta generator), sin depender de
 python-Wappalyzer, per el fallback que autoriza el plan maestro §2.
@@ -93,9 +93,26 @@ def _load_cve_hints() -> list[dict]:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or []
 
 
+_CVE_SEVERITIES = frozenset({"critical", "high", "medium", "low"})
+
+
 def _severity_from_cvss(label: str) -> str:
-    # Degradado a máx. "medium": es informativo, nunca verificado (plan §2.4).
-    return {"critical": "medium", "high": "medium", "medium": "low", "low": "low"}.get(label, "low")
+    """Severidad del hallazgo = severidad del propio CVE, sin degradar.
+
+    Antes esto degradaba a un techo de `medium` ("es informativo, nunca
+    verificado"). El argumento confundía dos cosas distintas:
+
+    - **si la falla es explotable aquí** — no lo comprobamos, no lo afirmamos, y
+      el texto del hallazgo lo sigue diciendo de forma explícita;
+    - **cuán grave es la falla que el componente arrastra** — un hecho público,
+      publicado por el fabricante, que no depende de que nosotros lo midamos.
+
+    Degradar un CVSS 9.9 a `medium` no era prudencia: era subestimar en el único
+    campo que el cliente usa para priorizar. Peor aún, el hallazgo se emitía con
+    `status="info"`, que `risk_engine._actionable` descarta por completo — de modo
+    que una vulnerabilidad crítica conocida no podía mover la nota **ni un punto**.
+    """
+    return label if label in _CVE_SEVERITIES else "low"
 
 
 def cve_matches(product: str, version: str) -> list[dict]:
@@ -120,6 +137,68 @@ def cve_matches(product: str, version: str) -> list[dict]:
 
 def cve_severity(label: str) -> str:
     return _severity_from_cvss(label)
+
+
+def cve_result_kwargs(product: str, version: str) -> list[dict]:
+    """Argumentos de `BaseCheck._result` por cada CVE conocido de `producto@versión`.
+
+    Compartida por el fingerprint de stack, los componentes de WordPress y el
+    análisis de librerías JS: los tres emitían el mismo hallazgo con el texto
+    duplicado, y corregir la severidad en un solo sitio habría dejado los otros
+    dos subestimando igual que antes.
+
+    El hallazgo es **accionable** (`status="fail"`): correr una versión con una
+    vulnerabilidad conocida es un hecho comprobado —la versión se leyó del propio
+    sitio y el rango es público—, aunque no se haya comprobado explotabilidad.
+    Eso último se declara en el texto y se refleja en `confidence="medium"`, que
+    `check_base` define exactamente para este caso: "deducción de una sola señal
+    (una versión expuesta implica un CVE)".
+    """
+    out: list[dict] = []
+    for entry in cve_matches(product, version):
+        cve_ids = entry.get("cve_ids", [])
+        unpatched = bool(entry.get("unpatched"))
+        unauthenticated = bool(entry.get("unauthenticated"))
+
+        if unpatched:
+            # Sin versión corregida, "actualizar" no es una remediación: el riesgo
+            # no baja hasta que el componente se aísle o se retire.
+            recommendation = (
+                f"No hay versión corregida publicada por el fabricante de '{product}'. "
+                "Restringir quién puede alcanzar el componente, y evaluar su reemplazo: "
+                "mientras siga instalado, el riesgo no se elimina actualizando."
+            )
+        else:
+            recommendation = f"Actualizar '{product}' a una versión parchada."
+
+        out.append({
+            "sub_id": f"vulnerable_component@{product}:{version}",
+            "severity": _severity_from_cvss(entry.get("cvss_severity", "low")),
+            # Sin credenciales previas el hallazgo es alcanzable por cualquiera;
+            # si exige una cuenta, la probabilidad depende de cuántas existan.
+            "likelihood": "high" if unauthenticated else "medium",
+            "status": "fail",
+            "title": (
+                f"{product} {version} con vulnerabilidad conocida"
+                f"{' y sin parche disponible' if unpatched else ''}"
+            ),
+            "finding": (
+                f"La versión {version} de '{product}' está dentro del rango afectado por "
+                f"{', '.join(cve_ids)}. "
+                + (
+                    "El fabricante no ha publicado una versión corregida. "
+                    if unpatched else ""
+                )
+                + "IDATA Sentinel no comprueba explotabilidad: el hallazgo afirma que el "
+                "componente arrastra una falla conocida, no que se haya explotado aquí."
+            ),
+            "business_impact": entry.get("title", "Ver referencias CVE."),
+            "recommendation": recommendation,
+            "evidence": f"{product} {version}",
+            "references": tuple(cve_ids),
+            "confidence": "medium",
+        })
+    return out
 
 
 def detect_technologies(resp) -> list[Detection]:
@@ -208,7 +287,7 @@ class TechFingerprintCheck(BaseCheck):
             ),
             evidence=f"wp-content/{d.kind}s/{d.product}/…?ver={d.version}", references=("CWE-200",),
         )]
-        out.extend(self._cve_informational(d))
+        out.extend(self._cve_findings(d))
         return out
 
     def _result_for_detection(self, d: Detection) -> list[CheckResult]:
@@ -222,7 +301,7 @@ class TechFingerprintCheck(BaseCheck):
                 recommendation=f"Ocultar la versión de {d.product} expuesta públicamente.",
                 evidence=f"{d.product} {d.version}", references=("CWE-200",),
             ))
-            out.extend(self._cve_informational(d))
+            out.extend(self._cve_findings(d))
         else:
             out.append(self._result(
                 sub_id=f"tech_detected@{d.product}", severity="info", likelihood="low", status="info",
@@ -233,22 +312,5 @@ class TechFingerprintCheck(BaseCheck):
             ))
         return out
 
-    def _cve_informational(self, d: Detection) -> list[CheckResult]:
-        out: list[CheckResult] = []
-        for entry in cve_matches(d.product, d.version or ""):
-            cve_ids = entry.get("cve_ids", [])
-            out.append(self._result(
-                sub_id=f"cve_informational@{d.product}:{d.version}",
-                severity=_severity_from_cvss(entry.get("cvss_severity", "low")),
-                likelihood="low",  # fijo: no se verificó explotabilidad (plan §2.4)
-                status="info",
-                title=f"Posibles CVEs conocidas para {d.product} {d.version}",
-                finding=(
-                    f"Versión potencialmente afectada por CVEs conocidas ({', '.join(cve_ids)}). "
-                    "Hallazgo informativo, no verificado; IDATA Sentinel no comprueba explotabilidad."
-                ),
-                business_impact=entry.get("title", "Ver referencias CVE."),
-                recommendation=f"Actualizar {d.product} a una versión parchada.",
-                evidence=f"{d.product} {d.version}", references=tuple(cve_ids),
-            ))
-        return out
+    def _cve_findings(self, d: Detection) -> list[CheckResult]:
+        return [self._result(**kw) for kw in cve_result_kwargs(d.product, d.version or "")]
