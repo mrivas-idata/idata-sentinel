@@ -486,21 +486,7 @@ class PrivacyPolicyCheck(BaseCheck):
         resp = outcome.response
         links = find_privacy_policy_links(resp.text, str(resp.url))
         if not links:
-            return [self._result(
-                sub_id="privacy_policy_missing",
-                severity="high", likelihood="high", status="fail",
-                title="Sin política de privacidad enlazada en el sitio",
-                finding="No se encontró ningún enlace a política de privacidad o tratamiento de datos.",
-                business_impact=(
-                    "Informar al titular es una obligación básica de la Ley 21.719. Su ausencia es "
-                    "verificable por cualquiera desde el navegador y es la primera brecha que "
-                    "detectaría un fiscalizador."
-                ),
-                recommendation=(
-                    "Publicar la política de privacidad y enlazarla desde el pie de página de todo el sitio."
-                ),
-                evidence="", references=("Ley 21.719 — deber de información",),
-            )]
+            return [self._missing_policy_result(resp)]
 
         target = links[0]
         policy = await ctx.get_outcome(target)
@@ -528,3 +514,82 @@ class PrivacyPolicyCheck(BaseCheck):
             ),
             evidence=target, references=("Ley 21.719",),
         )]
+
+    def _missing_policy_result(self, resp) -> CheckResult:
+        """Falta la política, pero no siempre pesa lo mismo.
+
+        La severidad se modula por lo que el sitio **hace** con datos, no por el
+        tipo de check. Un formulario que pide datos personales, o un rastreador
+        que se instala en la primera visita, son tratamiento en curso sin la
+        información debida: ahí la ausencia es grave. Un sitio de vitrina que no
+        captura nada ni instala nada arrastra la misma obligación de fondo, pero
+        su exposición por la web no es comparable.
+
+        Emitir `high` en los dos casos hacía que el hallazgo más llamativo del
+        informe fuera, en el segundo, el que menos aplicaba — y eso desgasta la
+        credibilidad de los otros hallazgos del mismo documento.
+
+        Ambas señales se leen del HTML que este check ya descargó: sin peticiones
+        adicionales al objetivo.
+        """
+        html = resp.text or ""
+        collecting = [f for f in parse_forms(html, str(resp.url)) if f.collects_pii]
+        trackers = detect_trackers(html)
+
+        motives = []
+        if collecting:
+            categories = sorted({c for f in collecting for c in f.pii_categories})
+            motives.append(
+                f"{len(collecting)} formulario(s) que capturan datos personales"
+                + (f" ({', '.join(categories)})" if categories else "")
+            )
+        if trackers:
+            motives.append(
+                f"{len(trackers)} rastreador(es) de terceros ({', '.join(sorted({t.name for t in trackers}))})"
+            )
+
+        if motives:
+            return self._result(
+                sub_id="privacy_policy_missing",
+                severity="high", likelihood="high", status="fail",
+                title="Sin política de privacidad enlazada, y el sitio ya trata datos",
+                finding=(
+                    "No se encontró ningún enlace a política de privacidad o tratamiento de datos, "
+                    f"y sin embargo la página presenta: {'; '.join(motives)}."
+                ),
+                business_impact=(
+                    "El tratamiento ya está ocurriendo sin informar al titular. Informar es una "
+                    "obligación básica de la Ley 21.719, verificable por cualquiera desde el "
+                    "navegador, y es la primera brecha que detectaría un fiscalizador."
+                ),
+                recommendation=(
+                    "Publicar la política de privacidad, enlazarla desde el pie de página de todo el "
+                    "sitio y de forma visible junto a cada formulario que capture datos."
+                ),
+                evidence="; ".join(motives)[:300],
+                references=("Ley 21.719 — deber de información",),
+            )
+
+        return self._result(
+            sub_id="privacy_policy_missing",
+            severity="medium", likelihood="medium", status="fail",
+            title="Sin política de privacidad enlazada en el sitio",
+            finding=(
+                "No se encontró ningún enlace a política de privacidad o tratamiento de datos. "
+                "En esta página no se detectaron formularios que capturen datos personales ni "
+                "rastreadores de terceros, así que la exposición por la web es menor: la obligación "
+                "de informar sigue recayendo sobre el responsable por los tratamientos que realice "
+                "fuera del sitio."
+            ),
+            business_impact=(
+                "Informar al titular es una obligación de la Ley 21.719 que no depende del canal. "
+                "Sin captura visible en la web el riesgo inmediato es menor, pero cualquier "
+                "formulario, chat o rastreador que se añada después lo eleva de inmediato."
+            ),
+            recommendation=(
+                "Publicar la política de privacidad y enlazarla desde el pie de página, antes de "
+                "incorporar formularios, analítica o cualquier otro tratamiento al sitio."
+            ),
+            evidence="Sin formularios de datos personales ni rastreadores detectados en /",
+            references=("Ley 21.719 — deber de información",),
+        )

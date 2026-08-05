@@ -303,11 +303,47 @@ async def test_consent_check_reports_unreachable_as_info(make_ctx):
 
 
 @respx.mock
-async def test_privacy_policy_missing_is_high(make_ctx):
-    respx.get("https://example.test/").mock(return_value=httpx.Response(200, text="<html></html>"))
+async def test_privacy_policy_missing_is_high_when_a_form_collects_personal_data(make_ctx):
+    """Hay tratamiento en curso sin informar: ahí la ausencia sí es grave."""
+    html = """
+    <html><body><form method="post" action="/enviar">
+      <input type="text" name="nombre"><input type="email" name="correo">
+    </form></body></html>
+    """
+    respx.get("https://example.test/").mock(return_value=httpx.Response(200, text=html))
     finding = (await PrivacyPolicyCheck().run(make_ctx()))[0]
     assert finding.id == "privacy_policy_missing"
     assert finding.severity == "high"
+    assert "formulario" in finding.finding
+
+
+@respx.mock
+async def test_privacy_policy_missing_is_high_when_trackers_load(make_ctx):
+    """Un rastreador instalado en la primera visita también es tratamiento."""
+    html = '<html><head><script src="https://www.googletagmanager.com/gtag/js?id=G-X"></script></head></html>'
+    respx.get("https://example.test/").mock(return_value=httpx.Response(200, text=html))
+    finding = (await PrivacyPolicyCheck().run(make_ctx()))[0]
+    assert finding.severity == "high"
+    assert "rastreador" in finding.finding
+
+
+@respx.mock
+async def test_privacy_policy_missing_is_medium_on_a_site_that_treats_nothing(make_ctx):
+    """Sin formularios ni rastreadores, la exposición por la web no es comparable.
+
+    Regresión: el check emitía `high` por el solo tipo de hallazgo, sin mirar si
+    el sitio trataba datos. En un sitio de vitrina que contacta por WhatsApp, eso
+    convertía el hallazgo más llamativo del informe en el que menos aplicaba — y
+    un informe que exagera en un punto pierde credibilidad en todos los demás.
+    La obligación de fondo se mantiene y el hallazgo sigue siendo accionable.
+    """
+    respx.get("https://example.test/").mock(return_value=httpx.Response(
+        200, text="<html><body><a href='https://wa.me/56900000000'>WhatsApp</a></body></html>"))
+    finding = (await PrivacyPolicyCheck().run(make_ctx()))[0]
+    assert finding.id == "privacy_policy_missing"
+    assert finding.severity == "medium"
+    assert finding.status == "fail"
+    assert "sigue recayendo sobre el responsable" in finding.finding
 
 
 @respx.mock
