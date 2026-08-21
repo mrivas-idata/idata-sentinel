@@ -50,6 +50,10 @@ class FetchOutcome:
 
     response: httpx.Response | None
     error: FetchError | None
+    #: Segundos que tardó la petición, medidos en el cliente. Es la única señal
+    #: de rendimiento que un escaneo sin navegador puede dar con honestidad, y
+    #: hasta ahora se descartaba (plan SEO/GEO §8.1).
+    elapsed: float | None = None
 
     @property
     def ok(self) -> bool:
@@ -92,6 +96,25 @@ class HttpClient:
     ) -> FetchOutcome:
         return await self.request(
             url, method="GET", headers=headers,
+            follow_redirects=follow_redirects, timeout=timeout,
+        )
+
+    async def head(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        follow_redirects: bool = True,
+        timeout: float | None = None,
+    ) -> FetchOutcome:
+        """HEAD: pide solo las cabeceras.
+
+        Permite conocer tamaño, tipo y caché de un recurso sin descargarlo, que
+        es lo que hace viable medir el peso de una página dentro del presupuesto
+        de peticiones.
+        """
+        return await self.request(
+            url, method="HEAD", headers=headers,
             follow_redirects=follow_redirects, timeout=timeout,
         )
 
@@ -145,6 +168,8 @@ class HttpClient:
             logger.info("Error HTTP en %s: %s", url, e)
             return FetchOutcome(response=None, error=FetchError.UNREACHABLE)
 
+        elapsed = resp.elapsed.total_seconds() if resp.elapsed is not None else None
+
         if len(resp.content) > MAX_BODY_BYTES:
             truncated = resp.content[:MAX_BODY_BYTES]
             resp = httpx.Response(
@@ -153,7 +178,7 @@ class HttpClient:
                 content=truncated,
                 request=resp.request,
             )
-        return FetchOutcome(response=resp, error=None)
+        return FetchOutcome(response=resp, error=None, elapsed=elapsed)
 
     async def post(self, url: str, *, json: dict | None = None) -> FetchOutcome:
         """Solo para notificaciones salientes del monitoreo (webhooks, §6).

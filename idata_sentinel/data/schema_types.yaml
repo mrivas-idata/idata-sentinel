@@ -1,0 +1,34 @@
+# Tipos de Schema.org esperados y sus propiedades mínimas (plan SEO/GEO §6.4).
+#
+# Existe para no exigirle lo mismo a todos: a un estudio jurídico se le pide
+# ProfessionalService y a una tienda Product/Offer. Pedir el catálogo completo a
+# cualquier sitio produciría hallazgos que nadie va a accionar.
+
+# Propiedades sin las cuales un buscador descarta el nodo para resultados
+# enriquecidos. Se listan solo las que de verdad bloquean, no todas las posibles.
+required_properties:
+  Organization: [name, url]
+  LocalBusiness: [name, address, telephone]
+  ProfessionalService: [name, address, telephone]
+  Product: [name, offers]
+  Article: [headline, datePublished]
+  Event: [name, startDate, location]
+  BreadcrumbList: [itemListElement]
+  FAQPage: [mainEntity]
+
+# Pistas de giro -> tipos que tiene sentido exigir. Las pistas se buscan en el
+# título y la descripción de la portada; sin coincidencia no se exige nada
+# específico, solo la identidad de la organización.
+business_hints:
+  legal:
+    keywords: [abogad, jurídic, juridic, legal, estudio jurídico, notaría, notaria]
+    expected: [ProfessionalService, LocalBusiness]
+  health:
+    keywords: [clínic, clinic, salud, dental, médic, medic, spa, kinesiolog]
+    expected: [LocalBusiness, MedicalBusiness]
+  commerce:
+    keywords: [tienda, comprar, carrito, ecommerce, productos, catálogo]
+    expected: [Organization, Product]
+  professional:
+    keywords: [topograf, arquitect, ingenier, consultor, asesor, contab]
+    expected: [ProfessionalService, LocalBusiness]

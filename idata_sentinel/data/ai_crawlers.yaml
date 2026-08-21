@@ -1,0 +1,57 @@
+# Agentes de motores generativos (plan SEO/GEO §7.1).
+#
+# `purpose` separa dos decisiones que suelen confundirse:
+#
+#   - training: el agente recolecta contenido para entrenar modelos. Bloquearlo
+#     es una decisión editorial legítima y no perjudica la visibilidad.
+#   - citation: el agente alimenta las respuestas que el usuario ve, con enlace
+#     a la fuente. Bloquearlo es renunciar a aparecer citado.
+#
+# El check informa de cada grupo por separado y no prescribe: quién cede su
+# contenido para entrenamiento es una decisión del cliente, no nuestra.
+
+- agent: GPTBot
+  vendor: OpenAI
+  purpose: training
+- agent: OAI-SearchBot
+  vendor: OpenAI
+  purpose: citation
+- agent: ChatGPT-User
+  vendor: OpenAI
+  purpose: citation
+- agent: ClaudeBot
+  vendor: Anthropic
+  purpose: training
+- agent: Claude-User
+  vendor: Anthropic
+  purpose: citation
+- agent: Claude-SearchBot
+  vendor: Anthropic
+  purpose: citation
+- agent: PerplexityBot
+  vendor: Perplexity
+  purpose: citation
+- agent: Perplexity-User
+  vendor: Perplexity
+  purpose: citation
+- agent: Google-Extended
+  vendor: Google
+  purpose: training
+- agent: Applebot-Extended
+  vendor: Apple
+  purpose: training
+- agent: CCBot
+  vendor: Common Crawl
+  purpose: training
+- agent: Bytespider
+  vendor: ByteDance
+  purpose: training
+- agent: meta-externalagent
+  vendor: Meta
+  purpose: training
+- agent: Amazonbot
+  vendor: Amazon
+  purpose: training
+- agent: cohere-ai
+  vendor: Cohere
+  purpose: training

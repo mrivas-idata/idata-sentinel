@@ -247,7 +247,7 @@ def test_health_endpoint(client):
 
 def test_modules_endpoint_serialises_the_help_catalog(client):
     payload = client.get("/api/modulos").json()
-    assert len(payload) == 4
+    assert len(payload) == 5
     assert {"key", "label", "what_it_does", "legal"} <= set(payload[0])
 
 

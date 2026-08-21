@@ -124,3 +124,39 @@
     - "idata-sentinel monitor run"
     - "idata-sentinel scan https://cliente.cl --record"
   report_section: "Sección 3 — Semáforo y tendencia"
+
+- key: search_visibility
+  alias: seo
+  label: Visibilidad en buscadores y motores generativos
+  phase: "Fase 5"
+  tagline: Si no te encuentran ni te citan, el resto da lo mismo.
+  purpose: >-
+    Evalúa si el sitio puede ser encontrado, entendido y citado: por los buscadores
+    clásicos (SEO), por los motores generativos que hoy responden sin enviar clics
+    (GEO) y con qué rapidez responde al usuario. Puntúa en un eje propio y NO
+    afecta al score de seguridad.
+  what_it_does:
+    - "Indexabilidad: robots.txt, meta robots y X-Robots-Tag, URL canónica, sitemap.xml y manejo de páginas inexistentes (soft 404)."
+    - "Contenido: título, meta description, jerarquía de encabezados, texto alternativo de imágenes, idioma declarado, duplicados entre páginas y metadatos para compartir."
+    - "Datos estructurados: JSON-LD y microdatos, identidad de la organización, migas de pan y preguntas frecuentes marcadas."
+    - "SEO local: marcado de negocio local, dirección, teléfono pulsable, horario, área de servicio y consistencia del teléfono entre páginas."
+    - "Motores generativos (GEO): qué agentes de IA bloquea robots.txt, distinguiendo los de entrenamiento de los que producen citas; llms.txt; contenido que solo existe tras ejecutar JavaScript; autoría, fechas y estructura citable."
+    - "Rendimiento observable: tiempo de respuesta, compresión, caché, peso del HTML, recursos que bloquean el dibujado, imágenes y fuentes, y número de orígenes externos."
+    - "Core Web Vitals reales (LCP, INP, CLS) solo con --with-field-data: los consulta al Chrome UX Report, que son mediciones de usuarios reales."
+  key_findings:
+    - "robots_blocks_indexing / meta_robots_noindex — el sitio no puede estar en el índice. No es posicionamiento: es ausencia."
+    - "ai_crawlers_blocked_from_citation — el sitio se excluye de aparecer citado por los asistentes de IA."
+    - "content_requires_javascript — el contenido parece existir solo tras renderizar, y los crawlers generativos no ejecutan JavaScript."
+    - "soft_404 — las páginas inexistentes responden 200 y acaban indexadas."
+    - "ttfb_slow — el servidor tarda en responder, que es el suelo de toda la experiencia."
+  legal: >-
+    Mismos límites que el modo pasivo: solo GET/HEAD, con espera entre peticiones,
+    respetando robots.txt y sin ejecutar ni evadir nada. El rastreo tiene un
+    presupuesto de páginas acotado (--seo-pages) y declara qué quedó fuera. La
+    consulta de datos de campo envía la URL del objetivo a Google y por eso es
+    opt-in explícito, nunca por omisión.
+  examples:
+    - "idata-sentinel scan https://cliente.cl --modules seo"
+    - "idata-sentinel scan https://cliente.cl --modules seo --seo-pages 20"
+    - "idata-sentinel scan https://cliente.cl --modules vuln,seo --pdf informe.pdf"
+  report_section: "Sección 3b — Visibilidad en buscadores y motores generativos"

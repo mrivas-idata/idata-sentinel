@@ -53,7 +53,8 @@ def test_internal_names_pass_through_and_spaces_are_tolerated():
 def test_every_module_has_complete_help():
     modules = all_modules()
     assert {m.key for m in modules} == {
-        "vuln_identification", "asset_inventory", "data_privacy", "monitoring"
+        "vuln_identification", "asset_inventory", "data_privacy", "monitoring",
+        "search_visibility",
     }
     for m in modules:
         assert m.tagline and m.purpose and m.legal
@@ -199,8 +200,12 @@ def test_scan_prints_score_and_findings():
     result = runner.invoke(app, ["scan", "https://cliente.test", "--modules", "vuln", "--rate-limit", "0"])
 
     assert result.exit_code == 0
-    assert "Score:" in result.stdout
+    # "Seguridad", no "Score": desde que hay dos ejes puntuables, una nota sin
+    # rótulo no dice cuál de los dos es.
+    assert "Seguridad:" in result.stdout
     assert "Hallazgos" in result.stdout
+    # Sin el módulo de visibilidad en el escaneo, no se inventa su nota.
+    assert "Visibilidad:" not in result.stdout
 
 
 @respx.mock

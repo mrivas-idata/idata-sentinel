@@ -67,11 +67,27 @@ class ModuleOutput:
     artifacts: dict = field(default_factory=dict)
 
 
+#: Ejes de puntuación. Un módulo pertenece a uno y solo a uno, y los ejes se
+#: puntúan por separado: promediar riesgo de seguridad con visibilidad en
+#: buscadores produciría un número que no significa nada —un sitio con un RCE
+#: sin parche mejoraría su nota de seguridad por tener buenos `title`—.
+SECURITY = "security"
+VISIBILITY = "visibility"
+
+
 @runtime_checkable
 class ScanModule(Protocol):
     name: str
+    #: Eje al que pertenecen los hallazgos del módulo. Los módulos que no lo
+    #: declaran son de seguridad, que es lo que eran los cuatro originales: así
+    #: el score de todo el histórico se mantiene idéntico.
+    scoring_domain: str
 
     async def run(self, params: RunParams) -> "list[dict] | ModuleOutput": ...
+
+
+def module_domain(module: object) -> str:
+    return getattr(module, "scoring_domain", SECURITY)
 
 
 #: Orden de ejecución. El Módulo 3 va último porque su checklist de cumplimiento
@@ -81,6 +97,7 @@ DEFAULT_MODULE_ORDER = {
     "asset_inventory": 20,
     "data_privacy": 30,
     "monitoring": 40,
+    "search_visibility": 50,
 }
 
 
@@ -139,6 +156,7 @@ class Engine:
         selected.sort(key=lambda m: DEFAULT_MODULE_ORDER.get(m.name, 50))
 
         results: dict[str, list[dict]] = {}
+        by_domain: dict[str, dict[str, list[dict]]] = {}
         artifacts: dict[str, dict] = {}
         accumulated: list[dict] = []
 
@@ -168,6 +186,7 @@ class Engine:
                 output = await module.run(params)
                 findings = output.findings if isinstance(output, ModuleOutput) else output
                 results[module.name] = findings
+                by_domain.setdefault(module_domain(module), {})[module.name] = findings
                 accumulated.extend(findings)
                 if isinstance(output, ModuleOutput) and output.artifacts:
                     artifacts[module.name] = output.artifacts
@@ -176,6 +195,9 @@ class Engine:
             "target": request.target,
             "mode": mode,
             "modules": results,
+            # Los hallazgos otra vez, agrupados por eje de puntuación. `modules`
+            # se mantiene tal cual para no romper a ningún consumidor existente.
+            "modules_by_domain": by_domain,
             "artifacts": artifacts,
         }
 

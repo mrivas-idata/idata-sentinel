@@ -45,7 +45,7 @@ from idata_sentinel.reporting.charts import (
     sparkline,
 )
 from idata_sentinel.reporting.report_builder import build_report_context
-from idata_sentinel.scoring.risk_engine import calculate
+from idata_sentinel.scoring.risk_engine import SECURITY, calculate, modules_for_domain
 from idata_sentinel.storage.db import DEFAULT_DB_PATH, ScanRecord, ScanStore
 
 logger = logging.getLogger(__name__)
@@ -305,7 +305,7 @@ def create_app(
             "target": record.target, "mode": record.mode,
             "modules": _group_by_module(record.findings), "artifacts": record.artifacts,
         }
-        risk = calculate(scan_result["modules"]).to_dict()
+        risk = calculate(modules_for_domain(scan_result, SECURITY)).to_dict()
         return templates.TemplateResponse(
             request, "scan_result.html.jinja2",
             base_context(request, active_target=target, **_result_context(
@@ -487,7 +487,7 @@ async def _run_job(
             target=job.target, mode=job.mode,
             modules=_resolve_modules(job.modules), authorization=authorization,
         ))
-        risk = calculate(result["modules"])
+        risk = calculate(modules_for_domain(result, SECURITY))
 
         if record:
             job.stage = "Guardando el resultado…"

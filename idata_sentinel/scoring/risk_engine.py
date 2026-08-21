@@ -7,6 +7,8 @@ from pathlib import Path
 
 import yaml
 
+from idata_sentinel.core.engine import SECURITY, VISIBILITY  # noqa: F401 — reexport
+
 _WEIGHTS_PATH = Path(__file__).resolve().parent / "weights.yaml"
 
 
@@ -92,6 +94,20 @@ def _score_from_findings(findings: list[dict], weights: dict) -> int:
 
     score = max(0, round(100 - penalty))
     return min(score, _severity_cap(actionable, weights))
+
+
+def modules_for_domain(scan_result: dict, domain: str) -> dict[str, list[dict]]:
+    """Hallazgos de un eje de puntuación, con retrocompatibilidad.
+
+    Un escaneo guardado antes de que existieran los ejes no trae
+    `modules_by_domain`: todo lo que contiene es de seguridad, que era el único
+    eje que había. Devolverlo tal cual mantiene idéntica la nota de todo el
+    histórico ya almacenado, que es lo que se consulta desde la app web.
+    """
+    by_domain = scan_result.get("modules_by_domain")
+    if by_domain is None:
+        return scan_result.get("modules", {}) if domain == SECURITY else {}
+    return by_domain.get(domain, {})
 
 
 def calculate(results_by_module: dict[str, list[dict]]) -> RiskScore:

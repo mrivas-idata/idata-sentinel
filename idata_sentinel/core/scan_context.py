@@ -51,6 +51,10 @@ class ScanContext:
     active_acknowledged: bool = False
     #: Sesión provista por el cliente para escaneo autenticado (§7). `None` = anónimo.
     client_session: ClientSession | None = None
+    #: Rastreo acotado de páginas, poblado solo por el módulo de visibilidad
+    #: (`core/crawl.py`). Los checks SEO/GEO lo consumen en vez de rastrear cada
+    #: uno por su cuenta, que multiplicaría las peticiones por número de checks.
+    crawl: object | None = None
     #: Baseline de hardening ya compilado, cacheado para no recompilar por check.
     _compiled_baseline: object | None = field(default=None, init=False, repr=False)
     _cache: dict[tuple[str, str, bool], FetchOutcome] = field(default_factory=dict, init=False, repr=False)

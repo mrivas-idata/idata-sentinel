@@ -13,11 +13,13 @@ from rich.table import Table
 
 from idata_sentinel.core.active_gate import ActiveCapabilityGate
 from idata_sentinel.core.authorization import AuditLogger, AuthorizationRequest
+from idata_sentinel.core.crawl import DEFAULT_PAGE_BUDGET
 from idata_sentinel.core.engine import Engine, ScanRequest
 from idata_sentinel.core.session import ClientSession, SessionError
 from idata_sentinel.docs import all_modules, module_help
 from idata_sentinel.modules.asset_inventory.module import AssetInventoryModule
 from idata_sentinel.modules.data_privacy.module import DataPrivacyModule
+from idata_sentinel.modules.search_visibility.module import SearchVisibilityModule
 from idata_sentinel.modules.monitoring.alerts import (
     CollectingNotifier,
     EmailConfig,
@@ -29,7 +31,7 @@ from idata_sentinel.modules.monitoring.scheduler import MonitorScheduler
 from idata_sentinel.modules.vuln_identification.module import VulnIdentificationModule
 from idata_sentinel.reporting.pdf_export import export_pdf
 from idata_sentinel.reporting.report_builder import build_report_context
-from idata_sentinel.scoring.risk_engine import calculate
+from idata_sentinel.scoring.risk_engine import SECURITY, VISIBILITY, calculate, modules_for_domain
 from idata_sentinel.storage.db import DEFAULT_DB_PATH, SCHEDULES, ScanStore
 
 app = typer.Typer(help="IDATA Sentinel — plataforma de diagnóstico de seguridad web (IDATA Chile).")
@@ -50,6 +52,7 @@ MODULE_ALIASES = {
     "assets": "asset_inventory",
     "privacy": "data_privacy",
     "monitor": "monitoring",
+    "seo": "search_visibility",
 }
 
 _SEVERITY_STYLE = {
@@ -69,7 +72,8 @@ MIN_PASSIVE_RATE_LIMIT = 2.0
 
 def _build_engine(
     *, store: ScanStore | None = None, notifiers: list | None = None, rate_limit: float = 2.0,
-    cache_path: Path | None = None,
+    cache_path: Path | None = None, seo_pages: int = DEFAULT_PAGE_BUDGET,
+    field_data: bool = False,
 ) -> Engine:
     engine = Engine(rate_limit_seconds=rate_limit)
     engine.register_module(VulnIdentificationModule())
@@ -77,6 +81,9 @@ def _build_engine(
     # pierda el inventario cuando las fuentes de CT están caídas.
     engine.register_module(AssetInventoryModule(cache_path=cache_path))
     engine.register_module(DataPrivacyModule())
+    engine.register_module(SearchVisibilityModule(
+        page_budget=seo_pages, field_data=field_data,
+    ))
     if store is not None:
         engine.register_module(MonitoringModule(store, notifiers=notifiers or []))
     return engine
@@ -100,7 +107,16 @@ def _resolve_modules(raw: str) -> list[str] | None:
 def scan(
     target: str = typer.Argument(..., help="URL objetivo, p.ej. https://ejemplo.cl"),
     mode: str = typer.Option("passive", "--mode", help="passive | audit"),
-    modules: str = typer.Option("all", "--modules", help="all | vuln,assets,privacy"),
+    modules: str = typer.Option("all", "--modules", help="all | vuln,assets,privacy,seo"),
+    seo_pages: int = typer.Option(
+        DEFAULT_PAGE_BUDGET, "--seo-pages",
+        help="Páginas a rastrear en el módulo de visibilidad (máx. 50)",
+    ),
+    field_data: bool = typer.Option(
+        False, "--with-field-data",
+        help=("Consulta Core Web Vitals reales al Chrome UX Report. Envía la URL del "
+              "objetivo a Google y exige IDATA_PAGESPEED_API_KEY."),
+    ),
     i_have_authorization: bool = typer.Option(False, "--i-have-authorization"),
     authorized_by: str = typer.Option("", "--authorized-by", help="Nombre, cargo de quien autoriza"),
     contract: str = typer.Option("", "--contract", help="N° de contrato/orden"),
@@ -162,6 +178,7 @@ def scan(
     engine = _build_engine(
         store=store, notifiers=notifiers if record else None, rate_limit=rate_limit,
         cache_path=db.parent / "subdomain_cache.json",
+        seo_pages=seo_pages, field_data=field_data,
     )
     request = ScanRequest(
         target=target, mode=mode, modules=_resolve_modules(modules), authorization=authorization,
@@ -170,8 +187,18 @@ def scan(
     )
     result = asyncio.run(engine.scan(request))
 
-    risk = calculate(result["modules"])
+    security_modules = modules_for_domain(result, SECURITY)
+    risk = calculate(security_modules)
     result["risk"] = risk.to_dict()
+    # No haber medido no es una nota alta. Si el escaneo no corrió ningún módulo
+    # de seguridad, se omite el indicador en vez de mostrar un 100 que solo
+    # significa "no se miró nada".
+    security_measured = bool(security_modules)
+
+    visibility_modules = modules_for_domain(result, VISIBILITY)
+    visibility = calculate(visibility_modules) if visibility_modules else None
+    if visibility is not None:
+        result["visibility"] = visibility.to_dict()
 
     if store is not None:
         all_findings = [f for group in result["modules"].values() for f in group]
@@ -180,7 +207,9 @@ def scan(
             findings=all_findings, artifacts=result.get("artifacts", {}),
         )
 
-    _print_summary(target, result, risk)
+    _print_summary(
+        target, result, risk if security_measured else None, visibility,
+    )
     if record and collector.sent:
         _print_alerts(collector.sent)
 
@@ -191,7 +220,10 @@ def scan(
         console.print(f"\n[green]JSON exportado a {json_output}[/green]")
 
     if pdf_output:
-        report_context = build_report_context(result, risk.to_dict())
+        report_context = build_report_context(
+            result, risk.to_dict(),
+            visibility=visibility.to_dict() if visibility is not None else None,
+        )
         try:
             export_pdf(report_context, pdf_output)
             console.print(f"[green]PDF exportado a {pdf_output}[/green]")
@@ -201,9 +233,18 @@ def scan(
                           "(disponibles en el contenedor de Railway; ver plan de infraestructura §11.4).[/yellow]")
 
 
-def _print_summary(target: str, result: dict, risk) -> None:
+def _print_summary(target: str, result: dict, risk=None, visibility=None) -> None:
     console.print(f"\n[bold]IDATA Sentinel[/bold] — {target} (modo: {result['mode']})")
-    console.print(f"Score: [bold]{risk.score}/100[/bold] ({risk.grade})\n")
+    # No haber medido un eje no es una nota alta en ese eje: si el módulo no
+    # corrió, no se imprime nada. Un 100 que solo significa "no se miró" es peor
+    # que la ausencia del dato, porque parece una respuesta.
+    if risk is not None:
+        console.print(f"Seguridad: [bold]{risk.score}/100[/bold] ({risk.grade})")
+    if visibility is not None:
+        # Dos ejes, nunca un promedio: son cosas distintas y mezclarlas produce
+        # un número que no significa nada (plan SEO/GEO §2).
+        console.print(f"Visibilidad: [bold]{visibility.score}/100[/bold] ({visibility.grade})")
+    console.print()
 
     all_findings = [f for findings in result["modules"].values() for f in findings]
     _print_coverage_warning(all_findings)
@@ -497,7 +538,7 @@ def monitor_run(
         result = await engine.scan(ScanRequest(
             target=record.target, mode=record.mode, modules=_resolve_modules(record.modules)
         ))
-        risk = calculate(result["modules"])
+        risk = calculate(modules_for_domain(result, SECURITY))
         store.record_scan(
             target=record.target, mode=result["mode"], score=risk.score, grade=risk.grade,
             findings=[f for g in result["modules"].values() for f in g],

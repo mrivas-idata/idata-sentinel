@@ -130,11 +130,24 @@
   <p class="muted" style="font-size:12pt; margin-top:18px;">{{ target }}</p>
 
   <div class="cover-meta">
-    <div style="display:flex; align-items:center; gap:20px; margin-bottom:22px;">
+    <div style="display:flex; align-items:center; gap:20px; margin-bottom:{% if visibility %}10px{% else %}22px{% endif %};">
+      {% if visibility %}<span class="hero-max" style="min-width:96px;">Seguridad</span>{% endif %}
       <span class="hero-value" style="color: {{ grade_color }}">{{ score }}</span>
       <span class="hero-max">/ 100</span>
       <span class="hero-grade" style="background: {{ grade_color }}">{{ grade }}</span>
     </div>
+    {% if visibility %}
+    <div style="display:flex; align-items:center; gap:20px; margin-bottom:22px;">
+      <span class="hero-max" style="min-width:96px;">Visibilidad</span>
+      <span class="hero-value" style="color: {{ visibility_grade_color }}">{{ visibility.score }}</span>
+      <span class="hero-max">/ 100</span>
+      <span class="hero-grade" style="background: {{ visibility_grade_color }}">{{ visibility.grade }}</span>
+    </div>
+    <p class="muted small" style="margin:-10px 0 18px;">
+      Dos ejes independientes: riesgo de seguridad y visibilidad en buscadores y motores
+      generativos. No se promedian — miden cosas distintas.
+    </p>
+    {% endif %}
     <table>
       <tr><td>Alcance</td><td>{{ mode_label }}</td></tr>
       <tr><td>Fecha del escaneo</td><td>{{ generated_at }}</td></tr>
@@ -268,6 +281,52 @@
     </div>
   {% endif %}
 </section>
+
+{% if visibility %}
+<!-- 3b. Visibilidad en buscadores y motores generativos -->
+<section class="section">
+  <div class="section-head"><h2>Visibilidad en buscadores y motores generativos</h2><span class="section-num">03b</span></div>
+
+  <div class="card">
+    <div style="display:flex; align-items:center; gap:18px;">
+      <span class="hero-value" style="color: {{ visibility_grade_color }}">{{ visibility.score }}</span>
+      <span class="hero-max">/ 100 &nbsp;·&nbsp; nota {{ visibility.grade }}</span>
+    </div>
+    <div class="meter"><div class="meter-fill" style="width: {{ visibility.score }}%; background: {{ visibility_grade_color }}"></div></div>
+    <p class="muted small" style="margin-top:10px;">
+      Mide si el sitio puede ser encontrado, entendido y citado: por los buscadores (SEO), por
+      los motores generativos que responden sin enviar clics (GEO) y con qué rapidez responde.
+      <strong>Esta nota no afecta al score de seguridad</strong> ni al revés.
+    </p>
+  </div>
+
+  {% if visibility.category_scores %}
+  <table style="margin-top:14px;">
+    <thead><tr><th>Área</th><th>Índice</th></tr></thead>
+    <tbody>
+      {% for area, value in visibility.category_scores.items() %}
+      <tr><td>{{ area }}</td><td>{{ value }}/100</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if visibility_findings %}
+  <div style="margin-top:14px;">
+    {% for f in visibility_findings %}
+      <div class="finding" style="border-left-color: {{ severity_color(f.severity) }};">
+        <span class="badge" style="background: {{ severity_color(f.severity) }}">{{ severity_label(f.severity) | upper }}</span>
+        <span class="muted small">{{ f.category }}</span>
+        <p class="finding-title">{{ f.title }}</p>
+        <p><strong>Qué se observó:</strong> {{ f.finding }}</p>
+        <p><strong>Por qué importa:</strong> {{ f.business_impact }}</p>
+        <p><strong>Qué hacer:</strong> {{ f.recommendation }}</p>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
 
 <!-- 4. Hallazgos priorizados -->
 <section class="section">

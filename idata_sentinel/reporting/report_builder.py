@@ -28,7 +28,10 @@ _CANONICAL_MODULES = [
 _GRADE_CLASS = {"A": "primary", "B": "primary", "C": "medium", "D": "high", "F": "critical"}
 
 
-def build_report_context(scan_result: dict, risk: dict, *, report_number: str | None = None) -> dict:
+def build_report_context(
+    scan_result: dict, risk: dict, *, report_number: str | None = None,
+    visibility: dict | None = None,
+) -> dict:
     """scan_result: {"target", "mode", "modules": {module_name: [finding, ...]}}.
     risk: salida de RiskScore.to_dict()."""
     branding = load_branding()
@@ -98,6 +101,15 @@ def build_report_context(scan_result: dict, risk: dict, *, report_number: str | 
         "severity_counts": severity_counts,
         "severity_segments": severity_segments(severity_counts),
         "grade_color": grade_color(risk["grade"]),
+        #: Segundo eje, presente solo si el módulo de visibilidad corrió. Va
+        #: **aparte** del score de seguridad y nunca promediado con él: son
+        #: cosas distintas y un promedio no significaría nada (plan SEO/GEO §2).
+        "visibility": visibility,
+        "visibility_grade_color": grade_color(visibility["grade"]) if visibility else None,
+        "visibility_findings": [
+            f for f in all_findings
+            if f["module"] == "search_visibility" and f["status"] in ("fail", "warning")
+        ],
         "severity_color": severity_color,
         "severity_label": severity_label,
         "surface_map": _artifact(scan_result, "asset_inventory", "surface_map"),
